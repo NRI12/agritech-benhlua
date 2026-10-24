@@ -1,0 +1,31 @@
+/* ── Reset & CSS Custom Properties ── */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg:       #0B1B09;
+  --sidebar:  #0D1D0C;
+  --card:     #152B12;
+  --card2:    #102010;
+  --border:   #243D22;
+  --active:   #1C4818;
+  --green:    #4CAF50;
+  --green2:   #66BB6A;
+  --text:     #E8F5E9;
+  --text2:    #A5C8A3;
+  --muted:    #6B9669;
+  --orange:   #FF9800;
+  --red:      #EF5350;
+  --blue:     #29B6F6;
+  --purple:   #BA68C8;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 13px;
+}

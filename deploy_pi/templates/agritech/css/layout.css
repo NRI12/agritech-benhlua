@@ -1,0 +1,38 @@
+/* ── App skeleton: app-body, 3-column grid, footer ── */
+
+.app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.main-content {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  overflow: hidden;
+}
+
+.col {
+  padding: 12px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.col:last-child { border-right: none; }
+.col::-webkit-scrollbar { width: 3px; }
+.col::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+footer {
+  background: var(--sidebar);
+  border-top: 1px solid var(--border);
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+}

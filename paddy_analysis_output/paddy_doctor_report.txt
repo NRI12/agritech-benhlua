@@ -1,0 +1,410 @@
+══════════════════════════════════════════════════════════════════════
+   PADDY DOCTOR DATASET — BÁO CÁO PHÂN TÍCH TOÀN DIỆN
+   Phân tích bởi Claude Code · 2026-05-21
+══════════════════════════════════════════════════════════════════════
+
+NGUỒN DỮ LIỆU:
+  HuggingFace : anthony2261/paddy-disease-classification
+  Gốc từ      : Kaggle — Paddy Doctor: Paddy Disease Classification
+  Hội nghị    : NeurIPS 2022 (Competition Track)
+  Tác giả gốc : Petchiammal A. et al., IIT Madras
+
+══════════════════════════════════════════════════════════════════════
+I. TỔNG QUAN TẬP DỮ LIỆU
+══════════════════════════════════════════════════════════════════════
+
+  Tổng số ảnh (tập huấn luyện)  : 10,407
+  Số lớp phân loại               : 10  (9 bệnh + 1 bình thường)
+  Số giống lúa                   : 10  giống
+  Khoảng tuổi ghi nhận          : 45 – 82 ngày sau khi cấy
+  Kích thước ảnh chủ yếu        : 480×640 px  (ảnh dọc, portrait)
+  Màu sắc ảnh                    : RGB (không có ảnh xám)
+  Dung lượng Parquet             : ~816 MB  (2 file .parquet)
+  Địa điểm thu thập              : Tamil Nadu, Ấn Độ
+  Phương tiện chụp               : Điện thoại thông minh, ngoài đồng
+
+══════════════════════════════════════════════════════════════════════
+II. PHÂN TÍCH ĐỊNH LƯỢNG (QUANTITATIVE ANALYSIS)
+══════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────
+A. PHÂN PHỐI NHÃN BỆNH (Label Distribution)
+────────────────────────────────────────────────────────────────────
+
+  Loại bệnh                         Số lượng    Tỉ lệ %   Xếp hạng
+  ─────────────────────────────────────────────────────────────────
+  Bình thường  (normal)                1,764     16,95 %      1
+  Đạo ôn       (blast)                 1,738     16,70 %      2
+  Bọ xít Hispa (hispa)                 1,594     15,32 %      3
+  Tim chết     (dead_heart)            1,442     13,86 %      4
+  Bệnh Tung ro (tungro)                1,088     10,45 %      5
+  Đốm nâu      (brown_spot)              965      9,27 %      6
+  Sương mai    (downy_mildew)            620      5,96 %      7
+  Bạc thêu lá  (bacterial_leaf_blight)  479      4,60 %      8
+  Sọc lá vi khuẩn (bact._leaf_streak)   380      3,65 %      9
+  Bạc thêu bông (bact._panicle_blight)  337      3,24 %     10
+  ─────────────────────────────────────────────────────────────────
+  TỔNG CỘNG                          10,407    100,00 %
+
+  Chỉ số mất cân bằng:
+    · Lớp nhiều nhất : Bình thường  — 1,764 ảnh
+    · Lớp ít nhất    : Bạc thêu bông — 337 ảnh
+    · Tỉ lệ mất cân bằng : 5,23×
+    · Độ lệch chuẩn số mẫu theo lớp : 568,5
+    · Shannon Entropy : 3,1151 bits  (tối đa lý thuyết: 3,3219 bits)
+    · Mức độ cân bằng : 93,8%  (100% = hoàn toàn cân bằng)
+    · Hệ số Gini (nhãn) : ~0,18  (0 = cân bằng, 1 = cực mất cân bằng)
+
+────────────────────────────────────────────────────────────────────
+B. PHÂN PHỐI GIỐNG LÚA (Variety Distribution)
+────────────────────────────────────────────────────────────────────
+
+  Giống lúa         Số lượng    Tỉ lệ %   Ghi chú
+  ─────────────────────────────────────────────────────────────────
+  ADT45               6,992     67,19 %   Giống ngắn ngày Tamil Nadu
+  KarnatakaPonni        988      9,49 %   Giống đặc sản Karnataka
+  Ponni                 657      6,31 %   Giống phổ biến Tamil Nadu
+  AtchayaPonni          461      4,43 %   Biến thể cải tiến của Ponni
+  Zonal                 399      3,83 %   Giống vùng sinh thái riêng
+  AndraPonni            377      3,62 %   Biến thể Ponni từ Andhra Pradesh
+  Onthanel              351      3,37 %   Giống địa phương bền bỉ
+  IR20                  114      1,10 %   Giống IRRI năng suất cao
+  RR                     36      0,35 %   Giống nghiên cứu thử nghiệm
+  Surya                  32      0,31 %   Giống lai năng suất cao
+  ─────────────────────────────────────────────────────────────────
+  TỔNG CỘNG          10,407    100,00 %
+
+  ⚠ Lưu ý: ADT45 chiếm 67,19% — mất cân bằng rất nghiêm trọng theo giống.
+    Surya và RR có < 40 mẫu, không đủ để phân tích riêng theo giống.
+
+────────────────────────────────────────────────────────────────────
+C. THỐNG KÊ TUỔI CÂY LÚA
+────────────────────────────────────────────────────────────────────
+
+  Trung bình (Mean)   : 64,04 ngày
+  Độ lệch chuẩn (Std) :  8,96 ngày
+  Trung vị (Median)   : 67,00 ngày
+  Mode (giá trị TB)   : 70,00 ngày  (3.077 ảnh = 29,6%)
+  Giá trị nhỏ nhất    : 45 ngày
+  Giá trị lớn nhất    : 82 ngày
+  Số mốc tuổi riêng biệt : 18
+
+  Phân phối theo mốc tuổi:
+    45 ngày :   505 ảnh  ( 4,9%)  ████
+    47 ngày :   112 ảnh  ( 1,1%)  █
+    50 ngày : 1.066 ảnh  (10,2%)  ██████████
+    55 ngày :   563 ảnh  ( 5,4%)  █████
+    57 ngày :   213 ảnh  ( 2,0%)  ██
+    60 ngày : 1.660 ảnh  (16,0%)  ████████████████
+    62 ngày :     5 ảnh  ( 0,0%)
+    65 ngày :   774 ảnh  ( 7,4%)  ███████
+    66 ngày :    36 ảnh  ( 0,3%)
+    67 ngày :   415 ảnh  ( 4,0%)  ████
+    68 ngày :   253 ảnh  ( 2,4%)  ██
+    70 ngày : 3.077 ảnh  (29,6%)  ██████████████████████████████ ← Đỉnh
+    72 ngày :   552 ảnh  ( 5,3%)  █████
+    73 ngày :    38 ảnh  ( 0,4%)
+    75 ngày :   866 ảnh  ( 8,3%)  ████████
+    77 ngày :    42 ảnh  ( 0,4%)
+    80 ngày :   225 ảnh  ( 2,2%)  ██
+    82 ngày :     5 ảnh  ( 0,0%)
+
+  Tuổi trung bình theo loại bệnh (Mean ± SD):
+    Bạc thêu bông    : 71,85 ± 4,80 ngày  ← Muộn nhất
+    Tim chết         : 70,00 ± 6,35 ngày
+    Đốm nâu          : 64,98 ± 8,77 ngày
+    Đạo ôn           : 63,80 ± 11,27 ngày
+    Bệnh Tung ro     : 63,27 ± 8,20 ngày
+    Sọc lá vi khuẩn  : 62,99 ± 8,69 ngày
+    Bọ xít Hispa     : 62,10 ± 7,86 ngày
+    Bình thường      : 62,06 ± 6,63 ngày
+    Bạc thêu lá      : 60,81 ± 9,65 ngày
+    Sương mai        : 60,32 ± 9,20 ngày  ← Sớm nhất
+
+  Giai đoạn sinh trưởng tương ứng:
+    45–59 ngày  → Giai đoạn đẻ nhánh  (Tillering stage)
+    60–69 ngày  → Giai đoạn làm đòng  (Panicle initiation)
+    70–82 ngày  → Giai đoạn trổ bông & chín sữa  (Heading/Milky stage)
+
+────────────────────────────────────────────────────────────────────
+D. KÍCH THƯỚC ẢNH (Image Dimensions)
+────────────────────────────────────────────────────────────────────
+
+  Chiều rộng (Width)   — Trung bình: 480,1 px  | Std:  3,1 px
+  Chiều cao  (Height)  — Trung bình: 639,9 px  | Std:  3,1 px
+  Tỉ lệ khung hình (AR)— Trung bình: 0,7502    | Std:  0,0114
+  Độ phân giải         — Trung bình: 0,3072 Megapixel
+
+  Phân bố kích thước:
+    480×640 px (dọc)  : 10.403 ảnh  (99,96%)  ← Chuẩn duy nhất
+    640×480 px (ngang):      4 ảnh  ( 0,04%)  ← Ngoại lệ
+  Kiểu màu: RGB  — 10.407/10.407 ảnh  (100%)
+
+
+══════════════════════════════════════════════════════════════════════
+III. PHÂN TÍCH ĐỊNH TÍNH (QUALITATIVE ANALYSIS)
+══════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────
+A. MÔ TẢ CHI TIẾT CÁC LOẠI BỆNH
+────────────────────────────────────────────────────────────────────
+
+  [1.764 mẫu — 16,95%]
+  BÌNH THƯỜNG (Normal / Healthy)
+  ▸ Đặc điểm: Lá lúa xanh đậm đồng đều, không có đốm, sọc, hoặc
+    biến màu bất thường. Cây phát triển bình thường.
+  ▸ Vai trò: Lớp tham chiếu cho huấn luyện mô hình phân loại.
+  ▸ Tỉ lệ: Lớp nhiều mẫu nhất (16,95%).
+
+  ─────────────────────────────────────────────────────────────────
+
+  [1.738 mẫu — 16,70%]  ★★★★★ RẤT NGUY HIỂM
+  ĐẠO ÔN (Blast) — Magnaporthe oryzae
+  ▸ Tác nhân: Nấm Magnaporthe oryzae (M. grisea)
+  ▸ Triệu chứng: Vết thương hình thoi koi màu nâu–xám, có viền đỏ
+    nâu. Vết bệnh tụ lại có thể gây gãy thân (eo cổ bông), mất
+    năng suất nghiêm trọng.
+  ▸ Lan truyền: Bào tử nấm qua không khí và nước mưa.
+  ▸ Điều kiện thuận lợi: Thời tiết ẩm, sương mù, nhiệt độ 24–28°C.
+  ▸ Biện pháp: Thuốc kháng nấm Tricyclazole, Isoprothiolane;
+    giống kháng bệnh; kiểm soát phân đạm.
+
+  ─────────────────────────────────────────────────────────────────
+
+  [1.594 mẫu — 15,32%]  ★★★ NGUY HIỂM TRUNG BÌNH
+  BỌ XÍT HISPA (Hispa) — Dicladispa armigera
+  ▸ Tác nhân: Côn trùng Dicladispa armigera (họ Chrysomelidae)
+  ▸ Triệu chứng: Ấu trùng đục bên trong lá tạo đường hầm màu
+    trắng–vàng dọc theo lá. Con trưởng thành cạo tờ bào lá tạo
+    sọc trắng song song.
+  ▸ Mùa phát sinh: Đầu mùa xuân, đầu mùa hè.
+  ▸ Biện pháp: Thuốc trừ sâu hệ thần kinh Chlorpyrifos, bẫy ánh
+    sáng, vệ sinh đồng ruộng sau vụ.
+
+  ─────────────────────────────────────────────────────────────────
+
+  [1.442 mẫu — 13,86%]  ★★★★ NGUY HIỂM CAO
+  TIM CHẾT (Dead Heart) — Scirpophaga incertulas
+  ▸ Tác nhân: Sâu đục thân Scirpophaga incertulas (Bướm đêm)
+  ▸ Triệu chứng: Nhánh lúa chính bị đục rỗng ruột, lá xung quanh
+    vẫn xanh. Khi kéo nhánh chính lên rất dễ tuột (đặc trưng).
+  ▸ Giai đoạn gây hại: Từ giai đoạn cây con đến làm đòng.
+  ▸ Biện pháp: Thuốc nội hấp Chlorpyrifos, Carbofuran; phóng
+    thích ong ký sinh Trichogramma; kiểm tra đồng định kỳ.
+
+  ─────────────────────────────────────────────────────────────────
+
+  [1.088 mẫu — 10,45%]  ★★★★★ RẤT NGUY HIỂM
+  BỆNH TUNG RO (Tungro)
+  ▸ Tác nhân: Hai loại virus:
+      · Rice Tungro Bacilliform Virus (RTBV)
+      · Rice Tungro Spherical Virus (RTSV)
+  ▸ Vecto truyền bệnh: Rầy xanh đuôi đen Nephotettix virescens
+  ▸ Triệu chứng: Lá vàng–cam sặc sỡ, cây lùn, đẻ nhánh kém,
+    bông ngắn, hạt lép nhiều.
+  ▸ Lưu ý: Không có thuốc trị virus — chỉ phòng bằng diệt vecto
+    và sử dụng giống kháng rầy.
+  ▸ Biện pháp: Diệt rầy bằng Imidacloprid, Thiamethoxam; giống
+    kháng rầy; không gieo trồng khi rầy mật độ cao.
+
+  ─────────────────────────────────────────────────────────────────
+
+  [965 mẫu — 9,27%]  ★★★ NGUY HIỂM TRUNG BÌNH
+  ĐỐM NÂU (Brown Spot) — Cochliobolus miyabeanus
+  ▸ Tác nhân: Nấm Cochliobolus miyabeanus (= Helminthosporium oryzae)
+  ▸ Triệu chứng: Đốm hình tròn hoặc bầu dục màu nâu, có viền
+    vàng xung quanh. Xuất hiện trên lá, bẹ lá và hạt lúa.
+  ▸ Điều kiện thuận lợi: Đất thiếu dinh dưỡng (N, K, Si), khô hạn.
+  ▸ Biện pháp: Bón phân cân đối (đặc biệt Kali và Silic); thuốc
+    kháng nấm Mancozeb, Iprodione; giống chịu hạn.
+
+  ─────────────────────────────────────────────────────────────────
+
+  [620 mẫu — 5,96%]  ★★★ NGUY HIỂM TRUNG BÌNH
+  SƯƠNG MAI (Downy Mildew) — Sclerophthora macrospora
+  ▸ Tác nhân: Nấm noãn Sclerophthora macrospora
+  ▸ Triệu chứng: Lá xoăn vặn, màu vàng nhạt; lớp mốc màu trắng–
+    xanh xuất hiện ở mặt dưới lá vào buổi sáng sớm. Cây lùn,
+    đẻ nhánh nhiều bất thường.
+  ▸ Lan truyền: Đất và nước ruộng bị nhiễm bào tử.
+  ▸ Biện pháp: Thoát nước đồng ruộng; thuốc Metalaxyl, Mancozeb;
+    luân canh cây trồng; không để ruộng ngập úng kéo dài.
+
+  ─────────────────────────────────────────────────────────────────
+
+  [479 mẫu — 4,60%]  ★★★★★ RẤT NGUY HIỂM
+  BẠC THÊU LÁ (Bacterial Leaf Blight) — Xanthomonas oryzae pv. oryzae
+  ▸ Tác nhân: Vi khuẩn Xanthomonas oryzae pv. oryzae (Xoo)
+  ▸ Triệu chứng: Mép lá héo vàng từ ngoài lan vào giữa. Buổi
+    sáng sớm có giọt bạch mủ vi khuẩn trên vết bệnh. Lá cháy
+    dần, toàn bộ lá có thể chết.
+  ▸ Lan truyền: Nước, gió, hạt giống bị nhiễm.
+  ▸ Điều kiện thuận lợi: Mùa mưa, bón nhiều phân đạm.
+  ▸ Biện pháp: Giống kháng (IR64, IR72); khử trùng hạt giống;
+    hạn chế phân đạm; không tưới nước lũ từ ruộng bệnh.
+
+  ─────────────────────────────────────────────────────────────────
+
+  [380 mẫu — 3,65%]  ★★★ NGUY HIỂM TRUNG BÌNH
+  SỌC LÁ VI KHUẨN (Bacterial Leaf Streak) — Xanthomonas oryzae pv. oryzicola
+  ▸ Tác nhân: Vi khuẩn Xanthomonas oryzae pv. oryzicola (Xoc)
+  ▸ Triệu chứng: Sọc vàng–nâu chạy dọc theo gân lá, giới hạn
+    bởi các gân. Bề mặt sọc có thể tiết mủ vi khuẩn.
+  ▸ Phân biệt với Bạc thêu lá: Sọc lá vi khuẩn tạo SỌC DỌC ở
+    GIỮA lá; Bạc thêu lá bắt đầu từ MÉP lá.
+  ▸ Biện pháp: Hạt giống sạch bệnh; kiểm dịch thực vật; hạn
+    chế dùng kháng sinh (gây kháng thuốc).
+
+  ─────────────────────────────────────────────────────────────────
+
+  [337 mẫu — 3,24%]  ★★★★ NGUY HIỂM CAO
+  BẠC THÊU BÔNG (Bacterial Panicle Blight) — Burkholderia glumae
+  ▸ Tác nhân: Vi khuẩn Burkholderia glumae
+  ▸ Triệu chứng: Bông lúa bị ảnh hưởng — hạt bẹp, màu nâu–đen,
+    bông lúa cụp xuống hoặc biến dạng. Mùi chua khó chịu khi
+    thời tiết ấm ẩm.
+  ▸ Điều kiện thuận lợi: Nhiệt độ ban đêm > 30°C kết hợp ẩm cao.
+  ▸ Ghi chú: Đây là lớp ÍT MẪU NHẤT (337 ảnh) — cần đặc biệt
+    chú ý khi huấn luyện mô hình (oversampling/class weighting).
+  ▸ Biện pháp: Hạt giống sạch bệnh; tránh gieo vụ khi dự báo
+    nóng ẩm; Streptomycin (hiệu quả hạn chế).
+
+────────────────────────────────────────────────────────────────────
+B. THÔNG TIN CÁC GIỐNG LÚA TRONG TẬP DỮ LIỆU
+────────────────────────────────────────────────────────────────────
+
+  ADT45          — Giống ngắn ngày, năng suất cao, phổ biến nhất
+                   tại Tamil Nadu, Ấn Độ. Kháng đổ ngã trung bình.
+  KarnatakaPonni — Giống đặc sản vùng Karnataka, hạt thơm ngon,
+                   dùng làm bánh và cơm trắng cao cấp.
+  Ponni          — Giống truyền thống Tamil Nadu, hạt mềm,
+                   nấu chín tự nhiên không cần nhiều nước.
+  AtchayaPonni   — Biến thể cải tiến của Ponni, năng suất cao hơn,
+                   chín sớm hơn. Phổ biến trong các chương trình
+                   phân phối lúa giống nhà nước.
+  Zonal          — Giống phát triển riêng cho vùng sinh thái cụ thể
+                   tại Tamil Nadu; thích nghi tốt với điều kiện địa
+                   phương.
+  AndraPonni     — Biến thể của Ponni từ Andhra Pradesh, đặc điểm
+                   hạt trung bình, phù hợp vùng đất đỏ bazan.
+  Onthanel       — Giống địa phương trâu thông (truyền thống), bền
+                   bỉ với điều kiện khắc nghiệt nhưng năng suất thấp
+                   hơn giống lai hiện đại.
+  IR20           — Giống IRRI (International Rice Research Institute),
+                   năng suất cao, phân bố rộng toàn Châu Á. Thời
+                   gian sinh trưởng 120–130 ngày.
+  RR             — Ký hiệu giống nghiên cứu thử nghiệm
+                   (Research Release); ít mẫu (36 ảnh).
+  Surya          — Giống lai năng suất cao, chịu mặn trung bình.
+                   Ít mẫu nhất trong tập dữ liệu (32 ảnh).
+
+────────────────────────────────────────────────────────────────────
+C. PHÁT HIỆN ĐÁC BIỆT TỪ PHÂN TÍCH CHÉO
+────────────────────────────────────────────────────────────────────
+
+  1. Giống Zonal và Sọc lá vi khuẩn:
+     Giống Zonal có 169/380 ảnh Sọc lá vi khuẩn (44,5%) — tỉ lệ
+     cao bất thường → gợi ý giống này nhạy cảm đặc biệt với vi
+     khuẩn Xanthomonas oryzae pv. oryzicola.
+
+  2. Giống AtchayaPonni và Bọ xít Hispa:
+     340/461 ảnh AtchayaPonni (73,7%) là Hispa → giống này có thể
+     dễ bị bọ xít Hispa tấn công hơn các giống khác.
+
+  3. Giống Ponni và mẫu Bình thường:
+     281/657 ảnh Ponni (42,8%) là Bình thường → Ponni được dùng
+     nhiều làm mẫu tham chiếu cây khoẻ trong quá trình thu thập.
+
+  4. Tổ hợp phổ biến nhất:
+     Bình thường + ADT45 + 60 ngày = 675 ảnh (6,5% toàn tập)
+
+  5. Tương quan tuổi–bệnh:
+     Nhóm bệnh xuất hiện MUỘN (≥70 ngày): Bạc thêu bông, Tim chết
+     Nhóm bệnh xuất hiện SỚM (≤61 ngày): Sương mai, Bạc thêu lá
+
+  6. Phần lớn ảnh được chụp ở mốc tuổi 60 và 70 ngày:
+     Hai mốc này chiếm 45,6% toàn tập — phản ánh lịch thu thập
+     dữ liệu theo đợt (giai đoạn làm đòng và trổ bông).
+
+════════════════════════════════════════════════════════════════════
+IV. NHẬN XÉT VÀ KHUYẾN NGHỊ
+════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────
+A. ĐIỂM MẠNH CỦA TẬP DỮ LIỆU
+────────────────────────────────────────────────────────────────────
+
+  ✓ Đa dạng loại bệnh (10 lớp): bao phủ đủ vi khuẩn, nấm, virus
+    và côn trùng gây hại — có giá trị thực tiễn cao.
+  ✓ Kết hợp thông tin phụ (giống lúa, tuổi) giúp mô hình học sâu
+    có thêm đặc trưng bổ sung ngoài hình ảnh.
+  ✓ Ảnh chụp thực tế ngoài đồng ruộng — không phải ảnh phòng thí
+    nghiệm — tăng khả năng triển khai ứng dụng thực tế.
+  ✓ Kích thước ảnh rất nhất quán (480×640 px, 99,96%).
+  ✓ Tất cả ảnh được gán nhãn bởi chuyên gia nông nghiệp của IIT
+    Madras — đảm bảo độ tin cậy cao.
+  ✓ Shannon Entropy 93,8% — phân phối nhãn khá tốt so với nhiều
+    tập dữ liệu bệnh cây khác.
+
+────────────────────────────────────────────────────────────────────
+B. HẠN CHẾ CẦN LƯU Ý
+────────────────────────────────────────────────────────────────────
+
+  ✗ Mất cân bằng lớp rõ rệt (5,23×): 3 lớp vi khuẩn (Bạc thêu
+    lá, Sọc lá, Bạc thêu bông) chỉ chiếm 11,5% tổng mẫu.
+  ✗ Chỉ có 1 split (train), không có tập val/test chính thức
+    → phải tự chia, dễ bị rò rỉ dữ liệu nếu không cẩn thận.
+  ✗ Giới hạn địa lý (Tamil Nadu, Ấn Độ): các giống và điều kiện
+    thổ nhưỡng đặc thù → có thể thiếu tính tổng quát ở vùng khác.
+  ✗ ADT45 chiếm 67% → mô hình có thể học thiên vị theo giống lúa
+    nếu dùng variety làm đặc trưng phụ mà không kiểm soát.
+  ✗ Surya (32 ảnh) và RR (36 ảnh) quá ít để phân tích đáng tin cậy.
+  ✗ 18 mốc tuổi phân bố không đều — 70 ngày chiếm 29,6% (không
+    đại diện cho phổ tuổi đầy đủ).
+
+════════════════════════════════════════════════════════════════════
+V. DANH SÁCH CÁC FILE ĐẦU RA
+════════════════════════════════════════════════════════════════════
+
+  Biểu đồ (trong thư mục paddy_analysis_output/):
+  ─────────────────────────────────────────────────────────────────
+  01_phan_phoi_nhan_benh.png      Cột ngang + biểu đồ tròn phân phối
+                                   10 nhãn bệnh, chú thích song ngữ
+  02_phan_phoi_giong_lua.png      Cột đứng + biểu đồ tròn 10 giống
+                                   lúa, thông tin từng giống
+  03_phan_tich_tuoi.png           Histogram tần suất + Boxplot +
+                                   Violin plot phân phối tuổi theo bệnh
+  04_heatmap_benh_giong.png       Heatmap số lượng và tỉ lệ % tương
+                                   quan Bệnh × Giống lúa (2 panel)
+  05_tuoi_trung_binh_theo_benh.png Mean ± SD tuổi + vùng giai đoạn
+                                   sinh trưởng theo màu nền
+  06_kich_thuoc_anh.png           Scatter Width×Height + phân phối
+                                   Aspect Ratio + Violin Megapixel
+  07_mat_can_bang.png             So sánh thực tế vs lý tưởng +
+                                   đường cong Lorenz + hệ số Gini
+  08_thanh_phan_benh_trong_giong  Stacked bar 100% + heatmap tỉ lệ %
+  .png                            thành phần bệnh theo từng giống lúa
+  09_dashboard_tong_hop.png       Dashboard 9-panel: tổng hợp toàn bộ
+                                   thống kê trong 1 hình duy nhất
+  10_the_thong_tin_benh.png       10 thẻ thông tin chi tiết từng bệnh:
+                                   tên VN+EN, tác nhân khoa học,
+                                   triệu chứng, mức nguy hiểm ★,
+                                   biện pháp phòng trừ
+
+  Dữ liệu:
+  ─────────────────────────────────────────────────────────────────
+  paddy_metadata.csv              Bảng metadata 10,407 dòng × 11 cột
+                                   (idx, label, variety, age, width,
+                                   height, mode, aspect_ratio, mp)
+  paddy_doctor_report.txt         Báo cáo phân tích này (file hiện tại)
+
+  Script phân tích:
+  ─────────────────────────────────────────────────────────────────
+  paddy_doctor_analysis.py        Script tải dataset + tạo metadata CSV
+  paddy_viet_charts.py            Script vẽ 10 biểu đồ tiếng Việt có dấu
+
+══════════════════════════════════════════════════════════════════════
+   Phân tích bởi Claude Code (claude-sonnet-4-6) · 2026-05-21
+   Dữ liệu: anthony2261/paddy-disease-classification (HuggingFace)
+   Cuộc thi: Kaggle Paddy Doctor NeurIPS 2022
+══════════════════════════════════════════════════════════════════════

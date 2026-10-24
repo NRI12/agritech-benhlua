@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agritech IoT & AI - Dashboard</title>
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <!-- Styles: global → layout → shared components → sections -->
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/header.css">
+  <link rel="stylesheet" href="css/sidebar.css">
+  <link rel="stylesheet" href="css/iot.css">
+  <link rel="stylesheet" href="css/ai.css">
+  <link rel="stylesheet" href="css/chat.css">
+  <link rel="stylesheet" href="css/pages.css">
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════
+     HEADER
+════════════════════════════════════════════════════════════ -->
+<header class="header">
+
+  <!-- Logo -->
+  <div class="logo">
+    <div class="logo-circle">🌾</div>
+    <div class="logo-text">
+      <h3>Agritech IoT & AI</h3>
+      <p>Nền tảng nông nghiệp thông minh</p>
+    </div>
+  </div>
+
+  <!-- Field selector -->
+  <div class="field-wrap">
+    <select class="field-select">
+      <option>Ruộng lúa 01</option>
+      <option>Ruộng lúa 02</option>
+      <option>Ruộng ngô 01</option>
+    </select>
+  </div>
+
+  <!-- Device online status -->
+  <div class="device-status">
+    <div class="dot-on"></div>
+    <span>Thiết bị: <strong style="color:var(--green)">Online</strong></span>
+  </div>
+
+  <div class="h-spacer"></div>
+
+  <!-- Weather widget -->
+  <div class="wdg">
+    <i class="fas fa-temperature-half" style="color:#FF7043;font-size:20px"></i>
+    <div class="wdg-text">
+      <div class="val" id="hdrTemp">—</div>
+      <div class="lbl">Nhiệt độ (cảm biến)</div>
+    </div>
+  </div>
+
+  <!-- Humidity widget -->
+  <div class="wdg">
+    <i class="fas fa-droplet" style="color:var(--blue);font-size:20px"></i>
+    <div class="wdg-text">
+      <div class="val" id="hdrHum">—</div>
+      <div class="lbl">Độ ẩm (cảm biến)</div>
+    </div>
+  </div>
+
+  <!-- Notifications -->
+  <div class="notif">
+    <i class="fas fa-bell"></i>
+  </div>
+
+  <!-- User profile -->
+  <div class="user-w">
+    <div class="u-info">
+      <div class="u-name">Nguyễn Văn A</div>
+      <div class="u-role">admin</div>
+    </div>
+    <div class="avatar"><i class="fas fa-user"></i></div>
+  </div>
+
+</header>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     APP BODY  (sidebar + 3-column main)
+════════════════════════════════════════════════════════════ -->
+<div class="app-body">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <nav>
+      <div class="nav-item active" data-page="overview" onclick="showPage('overview', this)">
+        <i class="fas fa-house"></i><span>Tổng quan</span>
+      </div>
+      <div class="nav-item" data-page="iot" onclick="showPage('iot', this)">
+        <i class="fas fa-wifi"></i><span>IoT - Giám sát</span>
+      </div>
+      <div class="nav-item" data-page="ai" onclick="showPage('ai', this)">
+        <i class="fas fa-brain"></i><span>AI - Phân tích</span>
+      </div>
+      <div class="nav-item" data-page="alerts" onclick="showPage('alerts', this)">
+        <i class="fas fa-triangle-exclamation"></i><span>Cảnh báo</span>
+      </div>
+      <div class="nav-item" data-page="history" onclick="showPage('history', this)">
+        <i class="fas fa-clock-rotate-left"></i><span>Lịch sử dữ liệu</span>
+      </div>
+      <div class="nav-item" data-page="device" onclick="showPage('device', this)">
+        <i class="fas fa-microchip"></i><span>Thiết bị</span>
+      </div>
+      <div class="nav-item" data-page="settings" onclick="showPage('settings', this)">
+        <i class="fas fa-gear"></i><span>Cài đặt</span>
+      </div>
+    </nav>
+
+    <!-- System status -->
+    <div class="sys-box" id="sysBox">
+      <div class="s-icon" id="sysIcon"><i class="fas fa-check"></i></div>
+      <p id="sysMsg">Đang kiểm tra hệ thống...</p>
+      <div class="upd" id="sysUpd"></div>
+    </div>
+  </aside>
+
+
+  <!-- ── MAIN CONTENT ── -->
+  <main class="main-content" id="mainContent" data-page="overview">
+
+    <!-- ══════════════ COLUMN 1 · IoT Monitoring ══════════════ -->
+    <div class="col" id="col-iot">
+      <div class="sec-title">IoT - Giám sát môi trường & dinh dưỡng đất</div>
+
+      <div class="sensor-banner" id="sensorBanner">
+        <i class="fas fa-plug-circle-xmark"></i>
+        <span>Cảm biến nhiệt độ & độ ẩm chưa sẵn sàng — chưa có dữ liệu thật. Kết nối thiết bị để hiển thị.</span>
+      </div>
+
+      <!-- Soil nutrients -->
+      <div class="card">
+        <div class="card-lbl">Dinh dưỡng đất</div>
+        <div class="nut-grid">
+
+          <div class="nut-item">
+            <div class="nut-icon ni-n">N</div>
+            <div class="nut-name">N (Đạm)</div>
+            <span class="nut-val" id="valN">28.6</span>
+            <span class="nut-unit">mg/kg</span>
+            <span class="badge badge-green" id="badgeN">Đạt</span>
+          </div>
+
+          <div class="nut-item">
+            <div class="nut-icon ni-p">P</div>
+            <div class="nut-name">P (Lân)</div>
+            <span class="nut-val" id="valP">15.2</span>
+            <span class="nut-unit">mg/kg</span>
+            <span class="badge badge-blue" id="badgeP">Trung bình</span>
+          </div>
+
+          <div class="nut-item">
+            <div class="nut-icon ni-k">K</div>
+            <div class="nut-name">K (Kali)</div>
+            <span class="nut-val" id="valK">18.7</span>
+            <span class="nut-unit">mg/kg</span>
+            <span class="badge badge-green" id="badgeK">Đạt</span>
+          </div>
+
+          <div class="nut-item">
+            <div class="nut-icon ni-ph" style="font-size:9px">pH</div>
+            <div class="nut-name">pH</div>
+            <span class="nut-val" id="valPh">6.4</span>
+            <span class="nut-unit">pH</span>
+            <span class="badge badge-green" id="badgePh">Phù hợp</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Temperature & Humidity sensors -->
+      <div class="sensors-row">
+        <div class="sensor-card">
+          <div class="sen-hdr"><i class="fas fa-thermometer-half" style="color:#FF7043"></i>Nhiệt độ</div>
+          <div class="sen-val"><span id="valTemp">—</span><span> °C</span></div>
+          <div class="sen-chg" id="tempNote" style="color:var(--muted)">Chưa kết nối cảm biến</div>
+        </div>
+        <div class="sensor-card">
+          <div class="sen-hdr"><i class="fas fa-droplet" style="color:var(--blue)"></i>Độ ẩm không khí</div>
+          <div class="sen-val"><span id="valHum">—</span><span> %</span></div>
+          <div class="sen-chg" id="humNote" style="color:var(--muted)">Chưa kết nối cảm biến</div>
+        </div>
+      </div>
+
+      <!-- Camera feed -->
+      <div class="card">
+        <div class="cam-hdr">
+          <span class="ct">Camera (xem trước — chỉ dùng để chụp ảnh)</span>
+        </div>
+
+        <!-- Main image (live MJPEG stream from camera) -->
+        <div class="main-img">
+          <img id="camStream" src="/video_feed" alt="Camera lúa"
+               style="width:100%;height:100%;object-fit:cover;display:block">
+        </div>
+        <button class="upload-btn" id="captureBtn" type="button" style="margin-top:10px">
+          <i class="fas fa-camera"></i> Chụp &amp; phân tích
+        </button>
+      </div>
+
+    </div><!-- /col-iot -->
+
+
+    <!-- ══════════════ COLUMN 2 · AI Analysis ══════════════ -->
+    <div class="col" id="col-ai">
+      <div class="sec-title">AI - Phân tích cây trồng</div>
+
+      <!-- Chọn ảnh để phân tích (nút ưu tiên) -->
+      <div class="upload-card" id="dropZone">
+        <input type="file" id="imgInput" accept="image/*" hidden>
+        <button class="upload-btn" id="pickBtn" type="button">
+          <i class="fas fa-image"></i> Chọn ảnh để phân tích
+        </button>
+        <div class="upload-hint">hoặc kéo thả / dán ảnh lá lúa vào đây · JPG, PNG tối đa 10 MB</div>
+        <div class="upload-state" id="uploadState" hidden>
+          <span id="uploadMsg"></span>
+          <button type="button" class="link-btn" id="backCamBtn"><i class="fas fa-xmark"></i> Xoá kết quả</button>
+        </div>
+      </div>
+
+      <!-- Tab navigation -->
+      <div class="tabs">
+        <button class="tab-btn active" onclick="setTab('detect', this)">Nhận biết bệnh</button>
+        <button class="tab-btn"        onclick="setTab('ratio',  this)">Tỷ lệ so sánh</button>
+        <button class="tab-btn"        onclick="setTab('solution',this)">Đề xuất xử lý</button>
+      </div>
+
+      <!-- ── Tab pane: Disease detection ── -->
+      <div id="tab-detect" class="tab-pane active">
+
+        <!-- Disease recognition result -->
+        <div class="card">
+          <div class="card-lbl">Kết quả nhận biết</div>
+          <div class="dis-row">
+            <!-- Leaf image (inline SVG) -->
+            <div class="dis-img" id="disImgBox">
+              <img id="disImg" alt="Ảnh phân tích" hidden>
+              <svg id="disSvg" viewBox="0 0 96 76" width="140" height="110" xmlns="http://www.w3.org/2000/svg">
+                <rect width="96" height="76" fill="#1a3a10"/>
+                <text x="48" y="42" text-anchor="middle" fill="#6B9669" font-size="7" font-family="sans-serif">Chưa có ảnh</text>
+              </svg>
+              <div class="img-toggle" id="imgToggle" hidden>
+                <button type="button" class="active" data-view="cam">Grad-CAM</button>
+                <button type="button" data-view="orig">Ảnh gốc</button>
+              </div>
+            </div>
+            <!-- Diagnosis -->
+            <div class="dis-info">
+              <h4>Kết quả nhận biết</h4>
+              <div class="dis-name">
+                <i class="fas fa-triangle-exclamation"></i>
+                <span id="disName">Đang chờ...</span>
+              </div>
+              <div class="conf-lbl">
+                <span>Độ tin cậy:</span>
+                <span class="conf-pct" id="disConf">0%</span>
+              </div>
+              <div class="pbar"><div class="pfill" id="disBar" style="width:0%"></div></div>
+              <div class="sev-row">
+                Mức độ bệnh: <span class="sev-bdg" id="disSev">—</span>
+              </div>
+              <div class="top3" id="top3" hidden></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Inline ratio summary -->
+        <div class="card">
+          <div class="ratio-lbl" id="ratioLbl">Tỷ lệ so sánh</div>
+          <div class="ratio-row">
+            <div class="donut-wrap">
+              <svg viewBox="0 0 100 100" width="100" height="100">
+                <circle cx="50" cy="50" r="38" fill="none" stroke="#1a3510" stroke-width="16"/>
+                <circle id="donutHealthy" cx="50" cy="50" r="38" fill="none" stroke="#4CAF50" stroke-width="16"
+                  stroke-dasharray="238.8 238.8" transform="rotate(-90 50 50)"/>
+                <circle id="donutInfected" cx="50" cy="50" r="38" fill="none" stroke="#EF5350" stroke-width="16"
+                  stroke-dasharray="0 238.8" stroke-dashoffset="-238.8"
+                  transform="rotate(-90 50 50)"/>
+              </svg>
+              <div class="donut-center">
+                <span class="dp" id="donutPct">0%</span>
+                <span class="dl">Nhiễm bệnh</span>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="leg-item">
+                <div class="leg-l"><div class="leg-dot" style="background:#4CAF50"></div>Cây khỏe mạnh</div>
+                <span class="leg-pct" id="legHealthy">100%</span>
+              </div>
+              <div class="leg-item">
+                <div class="leg-l"><div class="leg-dot" style="background:#EF5350"></div>Cây nhiễm bệnh</div>
+                <span class="leg-pct" id="legInfected">0%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Inline recommendations -->
+        <div class="card">
+          <div class="card-lbl">Đề xuất xử lý</div>
+          <div class="rec">
+            <div class="rec-ic ri-farm"><i class="fas fa-seedling"></i></div>
+            <div>
+              <h5 style="color:var(--green2)">Biện pháp canh tác</h5>
+              <p id="recFarm">Chưa có kết quả nhận diện.</p>
+            </div>
+          </div>
+          <div class="rec">
+            <div class="rec-ic ri-bio"><i class="fas fa-flask"></i></div>
+            <div>
+              <h5 style="color:var(--blue)">Biện pháp sinh học</h5>
+              <p id="recBio">—</p>
+            </div>
+          </div>
+          <div class="rec">
+            <div class="rec-ic ri-chem"><i class="fas fa-bottle-droplet"></i></div>
+            <div>
+              <h5 style="color:#90A4AE">Biện pháp hóa học</h5>
+              <p id="recChem">—</p>
+            </div>
+          </div>
+          <div class="warn-note">
+            <i class="fas fa-circle-exclamation"></i>
+            <span>Lưu ý: Luân phiên hoạt chất, đọc kỹ nhãn và tuân thủ thời gian cách ly. Kết quả AI chỉ mang tính tham khảo, không thay thế đánh giá thực tế từ chuyên gia.</span>
+          </div>
+        </div>
+
+      </div><!-- /tab-detect -->
+
+      <!-- ── Tab pane: Ratio comparison ── -->
+      <div id="tab-ratio" class="tab-pane">
+        <div class="card">
+          <div class="ratio-lbl" style="font-size:12px;margin-bottom:16px" id="ratioLbl2">Tỷ lệ so sánh</div>
+          <div class="ratio-row" style="justify-content:center;gap:30px">
+            <div class="donut-wrap" style="width:130px;height:130px">
+              <svg viewBox="0 0 100 100" width="130" height="130">
+                <circle cx="50" cy="50" r="38" fill="none" stroke="#1a3510" stroke-width="14"/>
+                <circle id="donutHealthy2" cx="50" cy="50" r="38" fill="none" stroke="#4CAF50" stroke-width="14"
+                  stroke-dasharray="238.8 238.8" transform="rotate(-90 50 50)"/>
+                <circle id="donutInfected2" cx="50" cy="50" r="38" fill="none" stroke="#EF5350" stroke-width="14"
+                  stroke-dasharray="0 238.8" stroke-dashoffset="-238.8" transform="rotate(-90 50 50)"/>
+              </svg>
+              <div class="donut-center">
+                <span class="dp" style="font-size:22px" id="donutPct2">0%</span>
+                <span class="dl">Nhiễm bệnh</span>
+              </div>
+            </div>
+            <div class="legend" style="min-width:130px">
+              <div class="leg-item" style="margin-bottom:14px">
+                <div class="leg-l" style="gap:8px"><div class="leg-dot" style="background:#4CAF50;width:13px;height:13px"></div>Cây khỏe mạnh</div>
+                <span class="leg-pct" style="font-size:14px" id="legHealthy2">100%</span>
+              </div>
+              <div class="leg-item">
+                <div class="leg-l" style="gap:8px"><div class="leg-dot" style="background:#EF5350;width:13px;height:13px"></div>Cây nhiễm bệnh</div>
+                <span class="leg-pct" style="font-size:14px" id="legInfected2">0%</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px">
+            <div class="stat-box"><div class="stat-lbl">Lần phân tích đã lưu</div><div class="stat-num" id="statTotal">—</div></div>
+            <div class="stat-box"><div class="stat-lbl">Lần phát hiện bệnh</div><div class="stat-num" style="color:var(--red)" id="statDisease">—</div></div>
+          </div>
+        </div>
+      </div><!-- /tab-ratio -->
+
+      <!-- ── Tab pane: Treatment suggestions ── -->
+      <div id="tab-solution" class="tab-pane">
+        <div class="card">
+          <div class="card-lbl" id="solTitle">Đề xuất xử lý</div>
+          <div class="rec">
+            <div class="rec-ic ri-farm"><i class="fas fa-seedling"></i></div>
+            <div>
+              <h5 style="color:var(--green2)">Biện pháp canh tác</h5>
+              <p id="solFarm">—</p>
+            </div>
+          </div>
+          <div class="rec">
+            <div class="rec-ic ri-bio"><i class="fas fa-flask"></i></div>
+            <div>
+              <h5 style="color:var(--blue)">Biện pháp sinh học</h5>
+              <p id="solBio">—</p>
+            </div>
+          </div>
+          <div class="rec">
+            <div class="rec-ic ri-chem"><i class="fas fa-bottle-droplet"></i></div>
+            <div>
+              <h5 style="color:#90A4AE">Biện pháp hóa học</h5>
+              <p id="solChem">—</p>
+            </div>
+          </div>
+          <div class="warn-note">
+            <i class="fas fa-circle-exclamation"></i>
+            <span>Lưu ý: Luân phiên hoạt chất và tuân thủ thời gian cách ly. Phun vào sáng sớm hoặc chiều mát. Kết quả AI chỉ mang tính tham khảo, không thay thế đánh giá thực tế từ chuyên gia.</span>
+          </div>
+        </div>
+      </div><!-- /tab-solution -->
+
+    </div><!-- /col-ai -->
+
+
+    <!-- ══════════════ COLUMN 3 · AI Chat ══════════════ -->
+    <div class="col col-chat" id="col-chat">
+      <div class="sec-title chat-title">Chat với AI
+        <button type="button" class="link-btn" id="clearChatBtn" title="Xoá cuộc trò chuyện"><i class="fas fa-trash"></i> Xoá cuộc trò chuyện</button>
+      </div>
+
+      <!-- Message history -->
+      <div class="chat-msgs" id="chatMsgs">
+
+        <div class="msg ai">
+          <div class="msg-av">AI</div>
+          <div class="msg-bub">Xin chào! Tôi là trợ lý AI trong nông nghiệp. Hãy chụp hoặc chọn ảnh lá lúa để phân tích, rồi hỏi tôi về kết quả nhé.</div>
+        </div>
+
+      </div><!-- /chat-msgs -->
+
+      <!-- Câu hỏi gợi ý (đổi theo kết quả ảnh đang xem) -->
+      <div class="chat-suggest" id="chatSuggest"></div>
+
+      <!-- Input bar -->
+      <div class="chat-in-wrap">
+        <input class="chat-in" id="chatIn" type="text" placeholder="Nhập câu hỏi của bạn...">
+        <button class="send-btn key-btn" id="keyBtn" type="button" title="Cài đặt API key ChatGPT">
+          <i class="fas fa-key"></i>
+        </button>
+        <button class="send-btn" id="sendBtn">
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </div>
+
+    </div><!-- /col-chat -->
+
+    <!-- ══════════════ PAGES: Cảnh báo / Lịch sử / Thiết bị / Cài đặt ══════════════ -->
+    <section class="page-view" id="page-alerts">
+      <div class="sec-title">Cảnh báo bệnh</div>
+      <div class="card"><div class="card-lbl">Các lần phát hiện bệnh mức Nặng / Trung bình</div>
+        <div id="alertsList" class="list-empty">Đang tải...</div></div>
+    </section>
+
+    <section class="page-view" id="page-history">
+      <div class="sec-title">Lịch sử nhận diện</div>
+      <div class="card">
+        <table class="tbl"><thead><tr><th>Thời gian</th><th>Nguồn</th><th>Kết quả</th><th>Độ tin cậy</th><th>Mức độ</th></tr></thead>
+        <tbody id="historyBody"><tr><td colspan="5" class="list-empty">Đang tải...</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <section class="page-view" id="page-device">
+      <div class="sec-title">Thiết bị &amp; hệ thống</div>
+      <div class="card"><div class="card-lbl">Raspberry Pi</div><div class="kv" id="deviceInfo">Đang tải...</div></div>
+    </section>
+
+    <section class="page-view" id="page-settings">
+      <div class="sec-title">Cài đặt</div>
+      <div class="card"><div class="card-lbl">ChatGPT</div>
+        <p style="color:var(--text2);margin-bottom:10px" id="settingsKey">Đang tải...</p>
+        <button class="upload-btn" id="settingsKeyBtn" type="button" style="width:auto"><i class="fas fa-key"></i> Đổi API key</button>
+      </div>
+      <div class="card"><div class="card-lbl">Ngưỡng nhận diện (sửa trong server/config.py)</div><div class="kv" id="settingsThr">—</div></div>
+    </section>
+
+  </main><!-- /main-content -->
+
+</div><!-- /app-body -->
+
+
+<!-- ════════════════════════════════════════════════════════════
+     FOOTER
+════════════════════════════════════════════════════════════ -->
+<footer>© 2024 Agritech IoT & AI Platform. All rights reserved.</footer>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     SCRIPTS
+════════════════════════════════════════════════════════════ -->
+<script src="js/nav.js"></script>
+<script src="js/ai-tabs.js"></script>
+<script src="js/camera.js"></script>
+<script src="js/chat.js"></script>
+<script src="js/pages.js"></script>
+<script src="js/upload.js"></script>
+<script src="js/api.js"></script>
+
+<!-- Xem ảnh kết quả phóng to -->
+<div class="lightbox" id="lightbox" hidden>
+  <div class="lightbox-box">
+    <button type="button" class="lightbox-close" id="lightboxClose" title="Đóng (Esc)"><i class="fas fa-xmark"></i></button>
+    <img id="lightboxImg" alt="Ảnh phân tích phóng to">
+    <div class="lightbox-bar">
+      <div class="img-toggle" id="lightboxToggle">
+        <button type="button" data-view="cam" class="active">Grad-CAM</button>
+        <button type="button" data-view="orig">Ảnh gốc</button>
+      </div>
+      <span class="lightbox-cap" id="lightboxCap"></span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
