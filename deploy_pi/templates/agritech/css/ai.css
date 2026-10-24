@@ -1,0 +1,92 @@
+/* ── AI Analysis column: tabs, disease detection, donut chart, recommendations ── */
+
+/* ─ Tabs ─ */
+.tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 10px; flex-shrink: 0; }
+.tab-btn {
+  padding: 7px 11px;
+  background: none; border: none;
+  color: var(--muted); cursor: pointer;
+  font-size: 11px;
+  border-bottom: 2px solid transparent;
+  transition: all .2s; white-space: nowrap;
+}
+.tab-btn.active { color: var(--green2); border-bottom-color: var(--green); }
+.tab-btn:hover  { color: var(--text2); }
+
+.tab-pane        { display: none; flex-direction: column; gap: 10px; }
+.tab-pane.active { display: flex; }
+
+/* ─ Disease detection card ─ */
+.dis-row { display: flex; gap: 12px; }
+.dis-img {
+  width: 96px; height: 76px;
+  border-radius: 8px; flex-shrink: 0; overflow: hidden; position: relative;
+}
+.dis-info { flex: 1; }
+.dis-info h4 { font-size: 10px; color: var(--text2); margin-bottom: 6px; }
+
+.dis-name {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(255,152,0,.1);
+  border: 1px solid rgba(255,152,0,.3);
+  border-radius: 6px; padding: 5px 10px; margin-bottom: 8px;
+}
+.dis-name i    { color: var(--orange); font-size: 11px; }
+.dis-name span { font-size: 13px; font-weight: 600; color: var(--orange); }
+
+.conf-lbl  { display: flex; justify-content: space-between; font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+.conf-pct  { color: var(--green2) !important; font-weight: 600; }
+
+.sev-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text2); margin-top: 6px; }
+.sev-bdg {
+  padding: 2px 10px; border-radius: 10px;
+  background: rgba(255,152,0,.15); color: var(--orange);
+  font-size: 11px; font-weight: 600;
+}
+
+/* ─ Ratio donut chart ─ */
+.ratio-lbl  { font-size: 11px; color: var(--text2); margin-bottom: 10px; }
+.ratio-row  { display: flex; align-items: center; gap: 14px; }
+
+.donut-wrap { position: relative; width: 100px; height: 100px; flex-shrink: 0; }
+.donut-center {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%); text-align: center;
+}
+.donut-center .dp { font-size: 18px; font-weight: 700; display: block; line-height: 1; color: var(--red); }
+.donut-center .dl { font-size: 9px; color: var(--text2); display: block; }
+
+.legend    { flex: 1; }
+.leg-item  { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 11px; }
+.leg-dot   { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.leg-l     { display: flex; align-items: center; gap: 6px; color: var(--text2); }
+.leg-pct   { font-weight: 600; }
+
+/* ─ Recommendations ─ */
+.rec {
+  display: flex; gap: 10px;
+  padding: 9px;
+  background: var(--card2); border: 1px solid var(--border); border-radius: 8px;
+  margin-bottom: 7px;
+}
+.rec:last-of-type { margin-bottom: 0; }
+.rec-ic {
+  width: 30px; height: 30px;
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; flex-shrink: 0;
+}
+.ri-farm { background: rgba(76,175,80,.2);    color: var(--green); }
+.ri-bio  { background: rgba(41,182,246,.2);   color: var(--blue);  }
+.ri-chem { background: rgba(158,158,158,.15); color: #90A4AE;      }
+.rec h5  { font-size: 11px; font-weight: 600; margin-bottom: 3px;  }
+.rec p   { font-size: 10px; color: var(--text2); line-height: 1.4; }
+
+.warn-note {
+  background: rgba(255,152,0,.08);
+  border: 1px solid rgba(255,152,0,.35);
+  border-radius: 8px; padding: 8px 12px;
+  font-size: 11px; color: var(--orange);
+  display: flex; align-items: flex-start; gap: 7px;
+  margin-top: 7px;
+}

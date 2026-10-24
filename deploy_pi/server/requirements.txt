@@ -1,0 +1,12 @@
+# Backend Agritech — cài trên Raspberry Pi 4 (Raspberry Pi OS 64-bit khuyến nghị)
+#   pip install -r requirements.txt
+#
+# Lưu ý: picamera2 KHÔNG cài qua pip. Trên Raspberry Pi OS cài bằng apt:
+#   sudo apt install -y python3-picamera2
+# (Nếu chỉ dùng webcam USB Hikvision thì không cần picamera2.)
+
+flask>=3.0
+onnxruntime>=1.16
+opencv-python-headless>=4.8
+numpy>=1.24
+pillow>=10.0

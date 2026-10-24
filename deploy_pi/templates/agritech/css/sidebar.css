@@ -1,0 +1,48 @@
+/* ── Left navigation sidebar ── */
+
+.sidebar {
+  width: 208px;
+  background: var(--sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  padding: 10px 0;
+}
+
+/* Nav items */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  color: var(--text2);
+  font-size: 13px;
+  transition: all .2s;
+  border-left: 3px solid transparent;
+}
+.nav-item:hover  { background: rgba(76,175,80,.08); color: var(--text); }
+.nav-item.active { background: var(--active); color: var(--green2); border-left-color: var(--green); }
+.nav-item i      { width: 16px; text-align: center; font-size: 13px; }
+
+/* System status box */
+.sys-box {
+  margin: 10px 12px 0;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: center;
+}
+.sys-box .s-icon {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: rgba(76,175,80,.15);
+  border: 2px solid var(--green);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 8px;
+  color: var(--green); font-size: 13px;
+}
+.sys-box p   { font-size: 11px; color: var(--text2); line-height: 1.4; }
+.sys-box .upd { font-size: 10px; color: var(--muted); margin-top: 6px; }

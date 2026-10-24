@@ -1,0 +1,20 @@
+# Bí mật & dữ liệu chạy (chứa API key, lịch sử)
+deploy_pi/data/
+deploy_pi/agritech.env
+*.env
+*.key
+openai_api_key
+
+# Môi trường / cache
+.venv/
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+
+# Dataset & sản phẩm huấn luyện nặng (không đưa lên git)
+paddy_images/
+dataset_yolo/
+runs/
+*.pt
+result_training/weights.zip
