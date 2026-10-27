@@ -6,7 +6,8 @@ sẵn, tự chứa, chạy được ngay. Không cần thứ gì khác.
 
 ```
 deploy_pi/                         ← BÊ NGUYÊN FOLDER NÀY SANG PI (~36 MB)
-├── install.sh, check_hardware.sh  cài tự động + kiểm tra thiết bị
+├── install.sh                     ALL-IN-ONE: cài + kiểm tra + 4G + khởi động server
+├── probe_ads1115.py               đọc điện áp 4 kênh ADS1115
 ├── server/                        mã backend (Flask, inference, camera...)
 ├── templates/agritech/           dashboard (HTML/CSS/JS)
 ├── paddy_classify/weights/best.onnx + best.cam.npy   model (~21 MB) và trọng số Grad-CAM
@@ -29,34 +30,38 @@ python server/inference.py sample_images/blast/*.jpg   # test 1 loại
 | `result_training/` | Output train gốc: `best.pt`, `results.csv`, biểu đồ... (bản `best.onnx` đã được copy vào `deploy_pi/`) |
 | `paddy_analysis_output/` | Báo cáo phân tích dataset |
 
-## Cài tự động trên Pi (khuyến nghị)
+## Cài tự động trên Pi (khuyến nghị) — một script duy nhất
 ```bash
-# Copy deploy_pi/ sang Pi (scp / USB), ví dụ để ở ~/agritech
-cd ~/agritech
-chmod +x install.sh
-./install.sh                      # cài đủ: apt, venv, pip, service tự khởi động
+# Copy deploy_pi/ sang Pi (scp / git clone / USB), ví dụ ở ~/agritech-benhlua/deploy_pi
+cd ~/agritech-benhlua/deploy_pi && chmod +x install.sh
+./install.sh                      # cài đủ + kiểm tra phần cứng + bật 4G + khởi động server
+./install.sh --apn v-internet     # chỉ định APN SIM 4G (lưu lại cho các lần sau)
 ./install.sh --camera usb         # ép webcam USB
-./install.sh --tunnel             # thêm Cloudflare Tunnel, in URL xem từ xa qua 4G
-./install.sh --port 8080 --no-service
-./install.sh --uninstall          # gỡ service
-./install.sh --check              # chỉ kiểm tra thiết bị/cổng I/O rồi thoát (hoặc ./check_hardware.sh)
+./install.sh --tunnel             # thêm Cloudflare Tunnel, in URL xem từ xa
+./install.sh --restart            # hằng ngày: KHÔNG cài lại, chỉ kiểm tra + bật lại 4G + khởi động lại server
+./install.sh --check              # chỉ kiểm tra (không sudo, không đổi gì); thoát mã 2 nếu thiếu camera
+./install.sh --uninstall          # gỡ service và kết nối 4G
 ```
-Script chạy lại nhiều lần được. Nó sẽ: cài gói apt (+ `python3-picamera2`), tạo `.venv`
-(kế thừa gói hệ thống), `pip install`, chạy thử model, ghi cấu hình vào `agritech.env`,
-tạo service systemd `agritech` (tự chạy khi bật Pi, tự restart khi lỗi), rồi kiểm tra
-`/api/health` và in địa chỉ truy cập.
+Script chạy lại nhiều lần được. Các bước: cài gói apt (+ `python3-picamera2`, `i2c-tools`) → tạo `.venv`
+→ `pip install` → chạy thử model → ghi `agritech.env` → **kiểm tra phần cứng** → **bật & kiểm tra 4G** →
+tạo/khởi động lại service `agritech` → kiểm tra `/api/health` → in địa chỉ truy cập và tình trạng 4G.
 
-Khi cài, script tự chạy `check_hardware.sh` (chỉ đọc, không đổi hệ thống) để báo thiết bị nào đã cắm:
-- **Bắt buộc:** ít nhất 1 camera dùng được — CSI (picamera2/libcamera) hoặc webcam USB (đọc thử 1 khung qua OpenCV, đối chiếu `CAMERA_SOURCE`). Thiếu thì báo `[MISS]` nhưng vẫn cài tiếp; cắm camera rồi chạy lại `--check`.
-- **Tuỳ chọn** (code cảm biến thật chưa viết, `sensors.py` vẫn là giả lập): cổng USB-RS485/UART cho NPK, I2C (SHT3x), GPIO (DHT22), quyền nhóm `dialout`/`gpio`/`video`.
-- **Mạng:** modem 4G SIM7600, giao diện wwan0/usb0, và kết nối tới `api.openai.com` (cho ChatGPT).
-- Bo mạch: model Pi, OS 64-bit, RAM, dung lượng trống, nguồn điện (`get_throttled` báo sụt áp).
+**Kiểm tra phần cứng** (chỉ đọc):
+- **Bắt buộc:** ít nhất 1 camera dùng được — CSI (picamera2/libcamera) hoặc webcam USB (đọc thử 1 khung qua OpenCV, đối chiếu `CAMERA_SOURCE`). Thiếu thì báo `[MISS]` nhưng vẫn cài tiếp; cắm camera rồi `./install.sh --restart`.
+- **Cảm biến** (code đọc cảm biến thật chưa viết, `sensors.py` vẫn giả lập): cổng USB-RS485, I2C (nhận diện chip theo địa chỉ, vd `0x48` = ADS1115 → `python3 probe_ads1115.py` để đọc điện áp), GPIO. Các cổng `ttyUSB*` của modem 4G được nhận ra, không bị nhầm là RS485.
+- **Bo mạch:** model Pi, OS 64-bit, RAM, dung lượng trống, nguồn điện (`get_throttled` báo sụt áp).
+
+**4G (SIM7600):** nếu thấy modem USB, script cài ModemManager, tạo kết nối NetworkManager `agritech-4g`
+(`route-metric 700` nên WiFi/Ethernet vẫn được ưu tiên, 4G là đường dự phòng), kết nối rồi kiểm chứng ra Internet
+bằng đúng giao diện 4G. Báo rõ SIM (READY/khoá PIN), nhà mạng, cường độ tín hiệu, trạng thái đăng ký mạng.
+Không đụng tới các kết nối mạng sẵn có. Cần Raspberry Pi OS Bookworm (có `nmcli`); tắt bằng `--no-4g`.
+Nếu không lên: thử `--apn <APN nhà mạng>` (Viettel `v-internet`, Mobifone `m-wap`, Vinaphone `m3-world`).
 
 Sau khi cài:
 ```bash
 systemctl status agritech          # trạng thái
 journalctl -u agritech -f          # log realtime
-sudo nano ~/agritech/agritech.env && sudo systemctl restart agritech   # đổi camera/port
+nano ~/agritech-benhlua/deploy_pi/agritech.env && ./install.sh --restart   # đổi camera/port/APN
 curl localhost:5000/api/health      # kiểm tra sống
 curl localhost:5000/api/system      # nhiệt độ CPU, RAM, load, uptime
 journalctl -u agritech-tunnel | grep trycloudflare   # URL tunnel (nếu dùng --tunnel)
