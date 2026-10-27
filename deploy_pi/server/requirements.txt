@@ -10,3 +10,4 @@ onnxruntime>=1.16
 opencv-python-headless>=4.8
 numpy>=1.24
 pillow>=10.0
+smbus2>=0.4   # đọc ADS1115 (độ ẩm đất) qua I2C

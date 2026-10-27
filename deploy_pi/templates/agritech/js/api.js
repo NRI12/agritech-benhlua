@@ -136,10 +136,12 @@ function applyBadge(id, badge) {
   el.className = 'badge badge-' + (badge.level === 'green' ? 'green' : badge.level === 'red' ? 'red' : 'blue');
 }
 
-function setEnvOffline() {          // chỉ nhiệt độ / độ ẩm; dinh dưỡng đất giữ nguyên
-  ['valTemp', 'valHum', 'hdrTemp', 'hdrHum'].forEach(id => setText(id, '—'));
-  setText('tempNote', 'Chưa kết nối cảm biến'); setText('humNote', 'Chưa kết nối cảm biến');
-  const b = $('sensorBanner'); if (b) b.hidden = false;
+function setCard(valId, noteId, d, hdrId, hdrUnit) {   // d = {available, value, message, mock}
+  const ok = d && d.available && d.value !== undefined;
+  setText(valId, ok ? d.value : '—');
+  if (hdrId) setText(hdrId, ok ? d.value + hdrUnit : '—');
+  setText(noteId, ok ? (d.mock ? 'Dữ liệu giả lập (SENSORS_MOCK=1)' : '') : ((d && d.message) || 'Chưa kết nối cảm biến'));
+  return ok;
 }
 
 async function pollSensors() {
@@ -149,13 +151,17 @@ async function pollSensors() {
     setText('valP', s.p.value);   applyBadge('badgeP', s.p.badge);
     setText('valK', s.k.value);   applyBadge('badgeK', s.k.badge);
     setText('valPh', s.ph.value); applyBadge('badgePh', s.ph.badge);
-    if (!s.available) { setEnvOffline(); return; }
-    const b = $('sensorBanner'); if (b) b.hidden = true;
-    setText('valTemp', s.temp.value); setText('valHum', s.humidity.value);
-    setText('hdrTemp', s.temp.value + '°C'); setText('hdrHum', s.humidity.value + '%');
-    const note = s.mock ? 'Dữ liệu giả lập (SENSORS_MOCK=1)' : '';
-    setText('tempNote', note); setText('humNote', note);
-  } catch (e) { setEnvOffline(); }
+    const t = setCard('valTemp', 'tempNote', s.temp, 'hdrTemp', '°C');
+    const h = setCard('valHum', 'humNote', s.humidity, 'hdrHum', '%');
+    const so = s.soil_moisture || {};
+    if (so.available && so.calibrated) setCard('valSoil', 'soilNote', so);
+    else if (so.available) { setText('valSoil', '—'); setText('soilNote', so.message); }
+    else setCard('valSoil', 'soilNote', so);
+    const b = $('sensorBanner'); if (b) b.hidden = t && h;
+  } catch (e) {
+    ['valTemp', 'valHum', 'valSoil', 'hdrTemp', 'hdrHum'].forEach(id => setText(id, '—'));
+    const b = $('sensorBanner'); if (b) b.hidden = false;
+  }
 }
 
 /* ── Trạng thái hệ thống (thay cho dòng "mọi thứ bình thường" cố định) ── */

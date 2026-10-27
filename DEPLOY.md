@@ -106,3 +106,9 @@ API và cấu hình: [deploy_pi/server/README.md](deploy_pi/server/README.md).
 - Thư mục **không dùng git** → xoá là mất. `deploy_pi/` là **bản code duy nhất**; nên giữ zip backup (không kèm `data/` vì chứa API key).
 - Muốn sửa code/dashboard: sửa thẳng trong `deploy_pi/server/` hoặc
   `deploy_pi/templates/agritech/` (đó giờ là nơi làm việc chính).
+
+## Cảm biến
+
+- **Nhiệt độ — DS18B20** (1-Wire): DATA → GPIO4, trở kéo lên 4.7 kΩ giữa DATA và 3.3V. Thêm `dtoverlay=w1-gpio` vào `/boot/firmware/config.txt`, reboot. Kiểm tra: `ls /sys/bus/w1/devices/` phải có thư mục `28-…`.
+- **Độ ẩm đất — cảm biến điện trở (module LM393)**: chân AO → A0 của ADS1115 (I2C 0x48). Đo điện áp bằng `python3 deploy_pi/probe_ads1115.py --watch` khi để khô ngoài không khí và khi nhúng nước, rồi đặt trong `agritech.env`: `SOIL_DRY_V=<V khô>` và `SOIL_WET_V=<V ướt>` (chưa đặt thì dashboard chỉ báo "chưa hiệu chuẩn", không hiển thị %).
+- **Độ ẩm không khí**: chưa có cảm biến, dashboard báo chưa sẵn sàng. Dinh dưỡng đất N, P, K, pH vẫn là dữ liệu giả lập.

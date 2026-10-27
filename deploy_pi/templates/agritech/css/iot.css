@@ -26,7 +26,7 @@
 .nut-unit { font-size: 9px;  color: var(--muted); display: block; margin-bottom: 6px; }
 
 /* ─ Sensors ─ */
-.sensors-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sensors-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
 .sensor-card {
   background: var(--card);
   border: 1px solid var(--border);
