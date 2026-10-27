@@ -8,6 +8,7 @@
 #   (không tham số)           cài đặt đầy đủ + kiểm tra + bật 4G + (khởi động lại) server
 #   --restart                 KHÔNG cài lại: kiểm tra + bật lại 4G + khởi động lại server (dùng hằng ngày)
 #   --check                   chỉ kiểm tra, KHÔNG đổi gì trong hệ thống (không sudo, không bật 4G)
+#   --diag                    chẩn đoán sâu 4G (ping/curl qua usb0, rp_filter, DNS, lệnh AT) — chỉ đọc
 #   --uninstall               gỡ service (giữ mã nguồn và .venv)
 # Tuỳ chọn:
 #   --camera auto|picam|usb   nguồn camera (mặc định: auto)
@@ -61,6 +62,7 @@ while [ $# -gt 0 ]; do
     --no-service) WITH_SERVICE=0; shift ;;
     --restart)    MODE="restart"; shift ;;
     --check)      MODE="check"; shift ;;
+    --diag)       MODE="diag"; shift ;;
     --uninstall)  MODE="uninstall"; shift ;;
     -h|--help)    usage; exit 0 ;;
     *) die "Tuỳ chọn không hợp lệ: $1 (xem --help)" ;;
@@ -73,7 +75,7 @@ case "$CAMERA" in auto|picam|usb) ;; *) die "--camera phải là auto|picam|usb"
 
 # Các chế độ khác --check có thể đổi hệ thống => cần sudo
 SUDO=""
-if [ "$MODE" != "check" ] && [ "$(id -u)" -ne 0 ]; then
+if [ "$MODE" != "check" ] && [ "$MODE" != "diag" ] && [ "$(id -u)" -ne 0 ]; then
   have sudo || die "Cần sudo hoặc chạy bằng root"
   SUDO="sudo"
 fi
@@ -396,7 +398,7 @@ check_4g() {
 #  (2) Không có giao diện mạng: dùng ModemManager + NetworkManager (kiểu gsm).
 # Luôn đặt route-metric 700 nên WiFi/Ethernet vẫn được ưu tiên, 4G chỉ là dự phòng. Không đụng kết nối khác.
 bring_up_4g_rndis() {
-  local ifc="$1" cur ip4 pub
+  local ifc="$1" cur ip4 pub n
   info "Modem chạy chế độ RNDIS/ECM trên giao diện $ifc — không cần ModemManager"
   PROBE_SUDO="$SUDO"
   if [ -n "$APN" ]; then
@@ -424,13 +426,28 @@ bring_up_4g_rndis() {
   else
     warn "Không có NetworkManager (nmcli): không tự xin IP cho $ifc được — dùng dhcpcd/dhclient thủ công"
   fi
-  local n
   for n in $(seq 1 20); do ip4="$(ip -4 -o addr show dev "$ifc" 2>/dev/null | awk '{print $4}' | head -1)"; [ -n "$ip4" ] && break; sleep 1; done
   if [ -z "$ip4" ]; then warn "$ifc vẫn chưa có IPv4 — modem chưa đăng ký mạng/chưa quay số. Kiểm tra SIM, anten, APN"; return 0; fi
   info "Giao diện 4G: $ifc ($ip4)"
-  pub="$(iface_internet "$ifc")"
-  if [ -n "$pub" ]; then ok "Internet qua 4G hoạt động (IP công khai $pub)"; FOURG_SUMMARY="đang kết nối ($ifc, IP $pub)"
-  else warn "$ifc có IP nhưng không ra được Internet (sai APN, hết data, hoặc SIM chưa kích hoạt data)"; fi
+  pub=""
+  for n in 1 2 3; do pub="$(iface_internet "$ifc")"; [ -n "$pub" ] && break; sleep 5; done
+  if [ -n "$pub" ]; then
+    ok "Internet qua 4G hoạt động (IP công khai $pub)"; FOURG_SUMMARY="đang kết nối ($ifc, IP $pub)"
+    # 4G tốt: gỡ cách ly (nếu trước đó đã cách ly) để làm đường dự phòng bình thường
+    if have nmcli && [ "$($SUDO nmcli -g ipv4.never-default connection show "$cur" 2>/dev/null)" = "yes" ]; then
+      $SUDO nmcli connection modify "$cur" ipv4.never-default no ipv4.ignore-auto-dns no >/dev/null 2>&1
+      $SUDO nmcli device reapply "$ifc" >/dev/null 2>&1; info "Đã gỡ cách ly đường 4G"
+    fi
+  else
+    warn "$ifc có IP nhưng không ra được Internet (modem chưa ra được mạng, hết data hoặc SIM chưa bật data) — chạy ./install.sh --diag để xem chi tiết"
+    # Cách ly: 4G hỏng không được làm đường mặc định hay cướp DNS của WiFi/Ethernet đang dùng được
+    if have nmcli; then
+      $SUDO nmcli connection modify "$cur" ipv4.never-default yes ipv4.ignore-auto-dns yes >/dev/null 2>&1
+      $SUDO nmcli device reapply "$ifc" >/dev/null 2>&1
+      info "Đã cách ly đường 4G (không làm đường mặc định, bỏ DNS của modem) để không ảnh hưởng mạng đang dùng"
+      FOURG_SUMMARY="$FOURG_SUMMARY; usb0 chưa ra Internet (đã cách ly)"
+    fi
+  fi
 }
 
 bring_up_4g() {
@@ -485,6 +502,62 @@ bring_up_4g() {
   fi
 }
 
+# Hỏi modem các lệnh AT tuỳ ý (mỗi lệnh một dòng trong $1), in nguyên phản hồi đã rút gọn
+at_raw() {
+  local ports; ports="$(ls /dev/ttyUSB2 /dev/ttyUSB3 /dev/ttyUSB1 /dev/ttyUSB0 /dev/ttyUSB4 2>/dev/null | tr '\n' ' ')"
+  [ -n "$ports" ] || return 1
+  PORTS="$ports" CMDS="$1" python3 - <<'PYEOF2' 2>/dev/null
+import os, select, termios, time
+def open_port(p):
+    fd = os.open(p, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+    a = termios.tcgetattr(fd)
+    a[0] = 0; a[1] = 0; a[2] = termios.CS8 | termios.CREAD | termios.CLOCAL; a[3] = 0
+    a[4] = a[5] = termios.B115200; a[6][termios.VMIN] = 0; a[6][termios.VTIME] = 0
+    termios.tcsetattr(fd, termios.TCSANOW, a); termios.tcflush(fd, termios.TCIOFLUSH)
+    return fd
+def raw(fd, cmd, wait=2.0):
+    os.write(fd, (cmd + "\r").encode()); buf = b""; end = time.time() + wait
+    while time.time() < end:
+        r, _, _ = select.select([fd], [], [], 0.2)
+        if r:
+            try: buf += os.read(fd, 4096)
+            except BlockingIOError: pass
+            if b"OK\r\n" in buf or b"ERROR" in buf: break
+    return buf.decode(errors="replace")
+def pretty(txt):
+    return " | ".join(l.strip() for l in txt.splitlines() if l.strip() and l.strip() != "OK" and not l.strip().startswith("AT"))
+fd = None
+for p in os.environ["PORTS"].split():
+    try: f = open_port(p)
+    except OSError: continue
+    if "OK" in raw(f, "AT", 1.0): fd = f; break
+    os.close(f)
+if fd is None: raise SystemExit
+for c in os.environ["CMDS"].splitlines():
+    if c.strip(): print("%-14s %s" % (c.strip(), pretty(raw(fd, c.strip())) or "(không phản hồi)"))
+PYEOF2
+}
+
+diag_4g() {
+  head_ "Chẩn đoán sâu 4G"
+  local ifc; ifc="$(mobile_iface)"
+  if [ -z "$ifc" ]; then info "Không có giao diện mạng di động (usb0/wwan0/ppp0)"; return 0; fi
+  ok "Giao diện: $ifc  $(ip -4 -o addr show dev "$ifc" 2>/dev/null | awk '{print $4}' | head -1)"
+  info "Đường mặc định: $(ip -4 route show default 2>/dev/null | tr '\n' ';')"
+  info "Đường tới 1.1.1.1 qua $ifc: $(ip route get 1.1.1.1 oif "$ifc" 2>&1 | head -1)"
+  info "ping qua $ifc: $(ping -c3 -W3 -I "$ifc" 1.1.1.1 2>&1 | tail -2 | tr '\n' ' ')"
+  info "curl qua $ifc: $(curl -sS -o /dev/null -w 'http=%{http_code} kết_nối=%{time_connect}s tổng=%{time_total}s' --max-time 10 --interface "$ifc" http://1.1.1.1/ 2>&1 | tail -1)"
+  info "rp_filter: all=$(sysctl -n net.ipv4.conf.all.rp_filter 2>/dev/null) $ifc=$(sysctl -n "net.ipv4.conf.$ifc.rp_filter" 2>/dev/null)  (1 = nghiêm ngặt, có thể chặn gói trả về khi có 2 đường mặc định)"
+  info "DNS của $ifc: $(nmcli -g IP4.DNS device show "$ifc" 2>/dev/null | tr '\n' ' ')"
+  info "Kết nối $NM_CON: never-default=$(nmcli -g ipv4.never-default connection show "$NM_CON" 2>/dev/null) ignore-auto-dns=$(nmcli -g ipv4.ignore-auto-dns connection show "$NM_CON" 2>/dev/null)"
+  info "Phân giải tên miền api.openai.com: $(getent hosts api.openai.com 2>&1 | head -1)$(getent hosts api.openai.com >/dev/null 2>&1 || echo 'THẤT BẠI')"
+  echo "  --- Modem (lệnh AT) ---"
+  local o; o="$(at_raw $'AT+CPSI?\nAT+CREG?\nAT+CGREG?\nAT+CEREG?\nAT+CNSMOD?\nAT+CGDCONT?\nAT+CGACT?\nAT+CGPADDR\nAT+CSQ\nAT+COPS?')"
+  if [ -n "$o" ]; then printf '%s\n' "$o" | sed 's/^/    /'
+  else warn "Không hỏi được modem qua cổng AT (thiếu quyền dialout hoặc không có cổng)"; fi
+  info "Nếu PDP đã kích hoạt mà vẫn không ra Internet: kiểm tra gói data của SIM (số dư, đã bật data chưa) theo hướng dẫn của nhà mạng."
+}
+
 run_checks() {
   check_board; check_camera; check_sensor_ports; check_4g
 }
@@ -504,6 +577,11 @@ summary_checks() {
 if [ "$MODE" = "check" ]; then
   run_checks; summary_checks
   [ "$FAIL_CAM" -ne 0 ] && exit 2
+  exit 0
+fi
+
+if [ "$MODE" = "diag" ]; then
+  MODEM_USB=$MODEM_USB; check_4g; diag_4g
   exit 0
 fi
 
