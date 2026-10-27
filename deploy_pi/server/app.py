@@ -7,6 +7,7 @@ Chức năng:
   • /api/sensors        : dữ liệu cảm biến (chưa cắm thiết bị -> available=false)
   • /api/chat (POST)    : tư vấn (ChatGPT, rớt về rule-based nếu không có key/lỗi)
   • /api/settings/api-key: xem/đặt/xoá API key ChatGPT (áp dụng ngay)
+  • /api/settings/sms, /api/sms/test: cài đặt + gửi thử cảnh báo SMS qua modem 4G
   • /api/health         : kiểm tra sống (dùng cho install.sh / giám sát)
   • /api/system         : nhiệt độ CPU, RAM, uptime của Pi
   • /api/predict/image (POST): phân tích ảnh người dùng chọn/tải lên
@@ -31,6 +32,7 @@ import sensors
 import chatbot
 import history
 import llm
+import sms
 from camera import CaptureThread, placeholder_jpeg
 from inference import PaddyClassifier
 
@@ -200,6 +202,7 @@ def _analyze(frame, source):
     with _result_lock:
         _latest_result = {k: v for k, v in res.items() if k != "gradcam"}
     history.record(res, source)
+    sms.maybe_alert(res, source)      # nền: tự gửi SMS cảnh báo nếu bật và đủ điều kiện
     return res
 
 
@@ -348,6 +351,29 @@ def api_key_settings():
     elif request.method == "DELETE":
         llm.clear_api_key()
     return jsonify(_key_status())
+
+
+def _sms_view():
+    return {**sms.load_settings(), "last": sms.last_result()}
+
+
+@app.route("/api/settings/sms", methods=["GET", "POST"])
+def api_sms_settings():
+    if not _is_admin():
+        return jsonify({"error": "Không có quyền. Cần mạng LAN hoặc mã quản trị (X-Admin-Token)."}), 403
+    if request.method == "POST":
+        s, err = sms.save_settings(request.get_json(silent=True) or {})
+        if err:
+            return jsonify({"error": err}), 400
+    return jsonify(_sms_view())
+
+
+@app.route("/api/sms/test", methods=["POST"])
+def api_sms_test():
+    if not _is_admin():
+        return jsonify({"error": "Không có quyền."}), 403
+    ok, detail = sms.send_test()
+    return jsonify({"ok": ok, "detail": detail}), (200 if ok else 502)
 
 
 def main():

@@ -100,3 +100,10 @@
 .lightbox-close { position: absolute; top: -12px; right: -12px; width: 30px; height: 30px; border-radius: 50%;
   border: 1px solid var(--border); background: var(--card2); color: #fff; cursor: pointer; font-size: 14px; z-index: 2; }
 .lightbox-close:hover { background: var(--red); }
+
+/* Cài đặt SMS */
+.sms-row { display: block; margin: 8px 0; color: var(--text2); font-size: 13px; }
+.sms-row input[type=text], .sms-row input[type=number] { display: block; width: 100%; margin-top: 4px; padding: 8px 10px;
+  border: 1px solid var(--border, #ddd); border-radius: 8px; background: var(--card, #fff); color: inherit; font: inherit; }
+.sms-row input[type=checkbox] { margin-right: 6px; }
+.sms-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
