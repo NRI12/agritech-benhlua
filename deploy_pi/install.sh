@@ -447,7 +447,11 @@ bring_up_4g_rndis() {
       $SUDO nmcli connection modify "$cur" ipv4.route-metric 700 ipv4.dns-priority 700 ipv6.method ignore 802-3-ethernet.mtu 1400 >/dev/null 2>&1 \
         && ok "Đã hạ ưu tiên đường 4G ('$cur', metric 700) — WiFi/Ethernet vẫn được dùng trước"
     fi
-    $SUDO timeout 40 nmcli connection up "$cur" ifname "$ifc" >/dev/null 2>&1 || warn "Không bật được kết nối '$cur' trên $ifc"
+    local upout
+    if ! upout="$($SUDO timeout 40 nmcli connection up "$cur" ifname "$ifc" 2>&1)"; then
+      warn "Không bật được kết nối '$cur' trên $ifc: $(printf '%s' "$upout" | tail -1)"
+      info "Trạng thái NetworkManager của $ifc: $(nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device status 2>/dev/null | grep "^$ifc:" | head -1)"
+    fi
   else
     warn "Không có NetworkManager (nmcli): không tự xin IP cho $ifc được — dùng dhcpcd/dhclient thủ công"
   fi
