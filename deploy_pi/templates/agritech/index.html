@@ -61,12 +61,12 @@
     </div>
   </div>
 
-  <!-- Humidity widget -->
+  <!-- Soil moisture widget -->
   <div class="wdg">
-    <i class="fas fa-droplet" style="color:var(--blue);font-size:20px"></i>
+    <i class="fas fa-seedling" style="color:#8D6E63;font-size:20px"></i>
     <div class="wdg-text">
-      <div class="val" id="hdrHum">—</div>
-      <div class="lbl">Độ ẩm (cảm biến)</div>
+      <div class="val" id="hdrSoil">—</div>
+      <div class="lbl">Độ ẩm đất (cảm biến)</div>
     </div>
   </div>
 
@@ -136,7 +136,7 @@
 
       <div class="sensor-banner" id="sensorBanner">
         <i class="fas fa-plug-circle-xmark"></i>
-        <span>Cảm biến nhiệt độ & độ ẩm chưa sẵn sàng — chưa có dữ liệu thật. Kết nối thiết bị để hiển thị.</span>
+        <span>Có cảm biến chưa sẵn sàng — xem thông báo trong từng ô bên dưới.</span>
       </div>
 
       <!-- Soil nutrients -->
@@ -179,17 +179,12 @@
         </div>
       </div>
 
-      <!-- Temperature & Humidity sensors -->
+      <!-- Temperature & soil moisture sensors -->
       <div class="sensors-row">
         <div class="sensor-card">
           <div class="sen-hdr"><i class="fas fa-thermometer-half" style="color:#FF7043"></i>Nhiệt độ</div>
           <div class="sen-val"><span id="valTemp">—</span><span> °C</span></div>
           <div class="sen-chg" id="tempNote" style="color:var(--muted)">Chưa kết nối cảm biến</div>
-        </div>
-        <div class="sensor-card">
-          <div class="sen-hdr"><i class="fas fa-droplet" style="color:var(--blue)"></i>Độ ẩm không khí</div>
-          <div class="sen-val"><span id="valHum">—</span><span> %</span></div>
-          <div class="sen-chg" id="humNote" style="color:var(--muted)">Chưa kết nối cảm biến</div>
         </div>
         <div class="sensor-card">
           <div class="sen-hdr"><i class="fas fa-seedling" style="color:#8D6E63"></i>Độ ẩm đất</div>
