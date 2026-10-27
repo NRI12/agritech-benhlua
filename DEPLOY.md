@@ -113,12 +113,9 @@ API và cấu hình: [deploy_pi/server/README.md](deploy_pi/server/README.md).
 - **Độ ẩm đất — cảm biến điện trở (module LM393)**: chân AO → A0 của ADS1115 (I2C 0x48). Hiệu chuẩn bằng `./install.sh --calib-soil`: làm theo hướng dẫn (để khô ngoài không khí, rồi nhúng hai chân kim loại vào nước), script tự ghi `SOIL_DRY_V`/`SOIL_WET_V` vào `agritech.env` và khởi động lại service. Chưa hiệu chuẩn thì dashboard chỉ báo điện áp thô, không hiển thị %.
 - **Độ ẩm không khí**: chưa có cảm biến, dashboard báo chưa sẵn sàng. Dinh dưỡng đất N, P, K, pH vẫn là dữ liệu giả lập.
 
-## WiFi tự nối
+## WiFi do Pi phát, 4G mặc định, SMS
 
-Nhập 1 lần (mật khẩu chỉ lưu trong NetworkManager trên Pi, không ghi vào git):
-
-```
-cd deploy_pi && ./install.sh --restart --wifi-ssid TEN_WIFI --wifi-pass 'MAT_KHAU'
-```
-
-Script tạo kết nối `agritech-wifi` (tự nối lại, ưu tiên cao hơn WiFi khác) và nối ngay. Các lần `--restart` sau không cần nhập lại.
+- **WiFi phát (mạng nội bộ):** `install.sh` tạo kết nối `agritech-ap` (SSID `AGRITECH`, Pi cấp DHCP + NAT ra Internet, IP Pi `10.42.0.1`), tự bật mỗi lần khởi động. Nhập mật khẩu **một lần**: `./install.sh --restart --ap-pass 'MẬT_KHẨU'` — lưu ở `deploy_pi/wifi.conf` (quyền 600, nằm trong `.gitignore`, không vào git). Đổi tên: `--ap-ssid`; bỏ phát: `--no-ap`. Pi dùng card `wlan0` để phát nên **không đồng thời làm client WiFi**; SSH/RustDesk qua WiFi cũ sẽ rớt, vào lại qua mạng AGRITECH (`ssh <user>@10.42.0.1`, web `http://10.42.0.1:5000`).
+- **4G làm đường mặc định:** metric 100 (WiFi 600), bỏ DNS do SIM cấp, dùng `1.1.1.1` và `8.8.8.8` (đổi ở biến `FOURG_DNS` đầu `install.sh`).
+- **Nối WiFi khác làm client (tuỳ chọn):** `--wifi-ssid TEN --wifi-pass 'MAT_KHAU'` (xung đột với WiFi phát vì cùng `wlan0`).
+- **Cảnh báo SMS:** web > Cài đặt > "Cảnh báo SMS": bật, nhập số điện thoại, độ tin cậy tối thiểu, thời gian chờ giữa 2 tin cùng bệnh, tối đa tin/ngày; có nút "Gửi tin thử". Gửi qua modem SIM7600 bằng lệnh AT (cần SIM còn tiền, user trong nhóm `dialout`, ModemManager không giữ cổng AT). Nội dung không dấu, ví dụ: `AGRITECH: Phat hien benh Dao on la tren lua (do tin cay 91.3%, muc do Trung binh). De nghi ra tham dong kiem tra som.`

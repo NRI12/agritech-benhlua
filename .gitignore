@@ -18,3 +18,6 @@ dataset_yolo/
 runs/
 *.pt
 result_training/weights.zip
+
+# Mật khẩu WiFi do Pi phát
+deploy_pi/wifi.conf
