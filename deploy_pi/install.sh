@@ -9,6 +9,7 @@
 #   --restart                 KHÔNG cài lại: kiểm tra + bật lại 4G + khởi động lại server (dùng hằng ngày)
 #   --check                   chỉ kiểm tra, KHÔNG đổi gì trong hệ thống (không sudo, không bật 4G)
 #   --diag                    chẩn đoán sâu 4G (ping/curl qua usb0, rp_filter, DNS, lệnh AT) — chỉ đọc
+#   --calib-soil              hiệu chuẩn cảm biến độ ẩm đất (đo khô/ướt, ghi vào agritech.env) rồi khởi động lại service
 #   --uninstall               gỡ service (giữ mã nguồn và .venv)
 # Tuỳ chọn:
 #   --camera auto|picam|usb   nguồn camera (mặc định: auto)
@@ -63,6 +64,7 @@ while [ $# -gt 0 ]; do
     --restart)    MODE="restart"; shift ;;
     --check)      MODE="check"; shift ;;
     --diag)       MODE="diag"; shift ;;
+    --calib-soil) MODE="calib-soil"; shift ;;
     --uninstall)  MODE="uninstall"; shift ;;
     -h|--help)    usage; exit 0 ;;
     *) die "Tuỳ chọn không hợp lệ: $1 (xem --help)" ;;
@@ -75,6 +77,12 @@ case "$CAMERA" in auto|picam|usb) ;; *) die "--camera phải là auto|picam|usb"
 
 # Các chế độ khác --check có thể đổi hệ thống => cần sudo
 SUDO=""
+if [ "$MODE" = "calib-soil" ]; then
+  python3 "$APP_DIR/calibrate_soil.py" --env "$ENV_FILE" || exit $?
+  if systemctl is-active --quiet "$APP_NAME" 2>/dev/null; then sudo systemctl restart "$APP_NAME" && echo "Đã khởi động lại service $APP_NAME."
+  else echo "Service chưa chạy; chạy ./install.sh --restart để áp dụng."; fi
+  exit 0
+fi
 if [ "$MODE" != "check" ] && [ "$MODE" != "diag" ] && [ "$(id -u)" -ne 0 ]; then
   have sudo || die "Cần sudo hoặc chạy bằng root"
   SUDO="sudo"
