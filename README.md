@@ -12,11 +12,11 @@ Dữ liệu huấn luyện: **Paddy Doctor** (10.407 ảnh, NeurIPS 2022). Kết
 ```bash
 # copy thư mục deploy_pi/ sang Pi (scp/USB), ví dụ ~/agritech
 cd ~/agritech && chmod +x install.sh
-./install.sh            # apt + venv + pip + kiểm tra phần cứng + service tự khởi động
+./install.sh            # ALL-IN-ONE: apt + venv + pip + kiểm tra phần cứng + bật 4G + khởi động server
 ```
 
-Mở `http://<ip-pi>:5000`. Các tuỳ chọn và lệnh vận hành (`--camera`, `--tunnel` xem từ xa qua 4G,
-`--check` kiểm tra thiết bị, `--uninstall`, log, đổi cấu hình) xem [DEPLOY.md](DEPLOY.md).
+Mở `http://<ip-pi>:5000`. Hằng ngày dùng `./install.sh --restart` (kiểm tra + bật lại 4G + khởi động lại server);
+`--check` chỉ kiểm tra, không đổi gì. Chi tiết các tuỳ chọn (`--apn`, `--tunnel`, `--camera`...) xem [DEPLOY.md](DEPLOY.md).
 
 Chạy thử trên máy dev (không cần Pi/camera): `cd deploy_pi && pip install -r server/requirements.txt && python server/app.py`.
 
@@ -34,8 +34,8 @@ Chạy thử trên máy dev (không cần Pi/camera): `cd deploy_pi && pip insta
 
 ```
 deploy_pi/                 ★ thư mục duy nhất cần copy sang Pi (~36 MB)
-├── install.sh             cài tự động (apt, venv, service, tunnel, --check, --uninstall)
-├── check_hardware.sh      kiểm tra camera CSI/USB, cổng RS485/I2C/GPIO, 4G, mạng, nguồn điện
+├── install.sh             ALL-IN-ONE: cài + kiểm tra phần cứng + bật/kiểm tra 4G + khởi động server
+├── probe_ads1115.py       đọc điện áp 4 kênh ADS1115 (dò cảm biến analog trên I2C 0x48)
 ├── server/                Flask backend: app, camera, inference (+Grad-CAM), llm (ChatGPT),
 │                          chatbot, sensors, history, config  → xem server/README.md
 ├── templates/agritech/    dashboard (HTML/CSS/JS thuần)
