@@ -18,6 +18,8 @@
 #   --apn TÊN                 APN của SIM 4G (vd: v-internet, m3-world; bỏ trống = để hệ thống tự dò)
 #   --wifi-ssid TÊN           tạo kết nối WiFi tự động nối (cần kèm --wifi-pass); lưu trong NetworkManager nên chỉ cần nhập 1 lần
 #   --wifi-pass MẬT_KHẨU      mật khẩu WiFi (KHÔNG ghi vào mã nguồn/git)
+#   --ap-ssid TÊN / --ap-pass MẬT_KHẨU   WiFi do Pi phát (mặc định AGRITECH); nhập 1 lần, lưu ở deploy_pi/wifi.conf (không đưa lên git)
+#   --no-ap                  không phát WiFi
 #   --no-4g                   không bật/kiểm tra kết nối 4G
 #   --tunnel                  cài Cloudflare Tunnel (xem từ xa qua 4G, in URL)
 #   --no-service              không tạo service tự khởi động
@@ -40,7 +42,13 @@ CAMERA="auto"; USB_INDEX="0"; PORT="5000"; APN=""
 MODE="install"            # install | restart | check | uninstall
 WITH_TUNNEL=0; WITH_SERVICE=1; WITH_4G=1
 CAMERA_GIVEN=0; USB_GIVEN=0; PORT_GIVEN=0
-WIFI_SSID=""; WIFI_PASS=""
+WIFI_SSID=""; WIFI_PASS=""                       # (tuỳ chọn) nối vào WiFi khác làm client
+AP_SSID="AGRITECH"; AP_PASS=""; WITH_AP=1        # WiFi do chính Pi phát; mật khẩu nằm trong wifi.conf (không vào git)
+FOURG_METRIC=100                                 # 4G là đường mặc định: nhỏ hơn WiFi (600) nên được ưu tiên
+FOURG_DNS="1.1.1.1 8.8.8.8"                      # DNS công cộng, bỏ DNS do SIM/modem cấp
+AP_SAVE=0
+WIFI_CONF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wifi.conf"
+[ -f "$WIFI_CONF" ] && . "$WIFI_CONF"
 
 # ── Hiển thị ────────────────────────────────────────────────────────────────
 WARN=0; FAIL_CAM=0
@@ -63,6 +71,9 @@ while [ $# -gt 0 ]; do
     --apn)        APN="${2:?thiếu giá trị}"; shift 2 ;;
     --wifi-ssid)  WIFI_SSID="${2:?thiếu giá trị}"; shift 2 ;;
     --wifi-pass)  WIFI_PASS="${2:?thiếu giá trị}"; shift 2 ;;
+    --ap-ssid)    AP_SSID="${2:?thiếu giá trị}"; AP_SAVE=1; shift 2 ;;
+    --ap-pass)    AP_PASS="${2:?thiếu giá trị}"; AP_SAVE=1; shift 2 ;;
+    --no-ap)      WITH_AP=0; shift ;;
     --no-4g)      WITH_4G=0; shift ;;
     --tunnel)     WITH_TUNNEL=1; shift ;;
     --no-service) WITH_SERVICE=0; shift ;;
@@ -424,7 +435,7 @@ check_4g() {
 #  (1) RNDIS/ECM (có giao diện usb0/wwan0 sẵn, vd SIM7600 PID 9011): modem tự quay số; việc cần làm là
 #      đặt APN (lệnh AT) và xin IP bằng DHCP qua NetworkManager. KHÔNG dùng ModemManager.
 #  (2) Không có giao diện mạng: dùng ModemManager + NetworkManager (kiểu gsm).
-# Luôn đặt route-metric 700 nên WiFi/Ethernet vẫn được ưu tiên, 4G chỉ là dự phòng. Không đụng kết nối khác.
+# 4G là đường mặc định (metric 100) và dùng DNS công cộng thay DNS của SIM. Không đụng kết nối khác.
 bring_up_4g_rndis() {
   local ifc="$1" cur ip4 pub n
   info "Modem chạy chế độ RNDIS/ECM trên giao diện $ifc — không cần ModemManager"
@@ -452,12 +463,12 @@ bring_up_4g_rndis() {
       while $SUDO nmcli connection delete "$NM_CON" >/dev/null 2>&1; do :; done
       log "Tạo kết nối '$NM_CON' cho $ifc (DHCP, ưu tiên thấp)..."
       $SUDO nmcli connection add type ethernet ifname "$ifc" con-name "$NM_CON" connection.autoconnect yes \
-        ipv4.method auto ipv4.route-metric 700 ipv4.dns-priority 700 ipv6.method ignore 802-3-ethernet.mtu 1400 >/dev/null 2>&1 || warn "Không tạo được kết nối $NM_CON"
+        ipv4.method auto ipv4.route-metric $FOURG_METRIC ipv4.ignore-auto-dns yes ipv4.dns "$FOURG_DNS" ipv4.dns-priority 50 ipv6.method ignore 802-3-ethernet.mtu 1400 >/dev/null 2>&1 || warn "Không tạo được kết nối $NM_CON"
       cur="$NM_CON"
     else
       # NetworkManager đã tự tạo profile cho $ifc: hạ ưu tiên để không cướp đường mặc định của WiFi/Ethernet
-      $SUDO nmcli connection modify "$cur" ipv4.route-metric 700 ipv4.dns-priority 700 ipv6.method ignore 802-3-ethernet.mtu 1400 >/dev/null 2>&1 \
-        && ok "Đã hạ ưu tiên đường 4G ('$cur', metric 700) — WiFi/Ethernet vẫn được dùng trước"
+      $SUDO nmcli connection modify "$cur" ipv4.route-metric $FOURG_METRIC ipv4.ignore-auto-dns yes ipv4.dns "$FOURG_DNS" ipv4.dns-priority 50 ipv6.method ignore 802-3-ethernet.mtu 1400 >/dev/null 2>&1 \
+        && ok "Đã đặt 4G làm đường mặc định ('$cur', metric $FOURG_METRIC, DNS $FOURG_DNS — bỏ DNS của SIM)"
     fi
     local upout
     if ! upout="$($SUDO timeout 40 nmcli connection up "$cur" ifname "$ifc" 2>&1)"; then
@@ -477,7 +488,7 @@ bring_up_4g_rndis() {
     [ "$pub" = "ok" ] && FOURG_SUMMARY="đang kết nối ($ifc)"
     # 4G tốt: gỡ cách ly (nếu trước đó đã cách ly) để làm đường dự phòng bình thường
     if have nmcli && [ "$($SUDO nmcli -g ipv4.never-default connection show "$cur" 2>/dev/null | head -1)" = "yes" ]; then
-      $SUDO nmcli connection modify "$cur" ipv4.never-default no ipv4.ignore-auto-dns no >/dev/null 2>&1
+      $SUDO nmcli connection modify "$cur" ipv4.never-default no ipv4.ignore-auto-dns yes ipv4.dns "$FOURG_DNS" ipv4.dns-priority 50 >/dev/null 2>&1
       $SUDO nmcli device reapply "$ifc" >/dev/null 2>&1; info "Đã gỡ cách ly đường 4G"
     fi
   else
@@ -516,6 +527,45 @@ setup_wifi() {
   fi
 }
 
+# Phát WiFi riêng (mạng nội bộ) bằng NetworkManager "shared": Pi cấp DHCP + NAT ra Internet bằng đường mặc định (4G).
+# Dùng chung card wlan0 nên Pi không đồng thời làm client WiFi: SSH/RustDesk đang đi qua WiFi cũ sẽ rớt, vào lại qua AGRITECH.
+AP_IP="10.42.0.1"
+setup_ap() {
+  [ "$WITH_AP" -eq 1 ] || return 0
+  head_ "Phát WiFi $AP_SSID"
+  have nmcli || { warn "Không có NetworkManager (nmcli) — không phát WiFi được"; return 0; }
+  ip link show wlan0 >/dev/null 2>&1 || { warn "Không thấy card WiFi wlan0"; return 0; }
+  if [ -z "$AP_PASS" ]; then
+    info "Chưa có mật khẩu WiFi phát — chạy một lần: ./install.sh --restart --ap-pass 'MẬT_KHẨU_8+_KÝ_TỰ' (lưu ở $WIFI_CONF, không vào git)"
+    return 0
+  fi
+  [ "${#AP_PASS}" -ge 8 ] || { warn "Mật khẩu WiFi phát phải từ 8 đến 63 ký tự"; return 0; }
+  if [ "$AP_SAVE" -eq 1 ]; then
+    ( umask 077; printf 'AP_SSID=%q\nAP_PASS=%q\n' "$AP_SSID" "$AP_PASS" > "$WIFI_CONF" )
+    ok "Đã lưu cấu hình WiFi phát vào $WIFI_CONF (quyền 600, đã loại khỏi git)"
+  fi
+  local con="agritech-ap" cur_ssid cur_psk
+  cur_ssid="$($SUDO nmcli -g 802-11-wireless.ssid connection show "$con" 2>/dev/null | head -1)"
+  cur_psk="$($SUDO nmcli -s -g 802-11-wireless-security.psk connection show "$con" 2>/dev/null | head -1)"
+  if [ "$cur_ssid" != "$AP_SSID" ] || [ "$cur_psk" != "$AP_PASS" ]; then
+    while $SUDO nmcli connection delete "$con" >/dev/null 2>&1; do :; done
+    $SUDO nmcli radio wifi on >/dev/null 2>&1
+    if $SUDO nmcli connection add type wifi ifname wlan0 con-name "$con" ssid "$AP_SSID" \
+         802-11-wireless.mode ap 802-11-wireless.band bg \
+         wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$AP_PASS" \
+         ipv4.method shared ipv4.addresses "$AP_IP/24" ipv6.method ignore \
+         connection.autoconnect yes connection.autoconnect-priority 200 >/dev/null 2>&1; then
+      ok "Đã tạo WiFi phát '$AP_SSID' (tự bật mỗi lần khởi động, IP Pi: $AP_IP)"
+    else warn "Không tạo được WiFi phát '$AP_SSID'"; return 0; fi
+  fi
+  if $SUDO nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | grep -q "^$con:wlan0"; then
+    ok "WiFi '$AP_SSID' đang phát — kết nối vào rồi mở http://$AP_IP:$PORT (SSH: ssh $RUN_USER@$AP_IP)"
+  else
+    warn "Sắp chuyển wlan0 sang phát WiFi '$AP_SSID': kết nối SSH/RustDesk qua WiFi cũ sẽ rớt trong vài giây. Kết nối vào WiFi '$AP_SSID' rồi vào http://$AP_IP:$PORT"
+    $SUDO setsid nohup bash -c "sleep 3; nmcli connection up $con" >/dev/null 2>&1 &
+  fi
+}
+
 bring_up_4g() {
   [ "$WITH_4G" -eq 1 ] && [ "$MODEM_USB" -eq 1 ] || return 0
   head_ "Bật 4G"
@@ -547,7 +597,7 @@ bring_up_4g() {
   fi
   if ! $SUDO nmcli -t -f NAME connection show 2>/dev/null | grep -qx "$NM_CON"; then
     log "Tạo kết nối 4G '$NM_CON'${APN:+ (APN $APN)}..."
-    local args=(connection add type gsm ifname '*' con-name "$NM_CON" connection.autoconnect yes ipv4.route-metric 700 ipv4.dns-priority 700 ipv6.method ignore)
+    local args=(connection add type gsm ifname '*' con-name "$NM_CON" connection.autoconnect yes ipv4.route-metric $FOURG_METRIC ipv4.ignore-auto-dns yes ipv4.dns "$FOURG_DNS" ipv4.dns-priority 50 ipv6.method ignore)
     [ -n "$APN" ] && args+=(gsm.apn "$APN")
     $SUDO nmcli "${args[@]}" >/dev/null 2>&1 || { warn "Không tạo được kết nối 4G bằng nmcli"; return 0; }
   elif [ -n "$APN" ]; then
@@ -707,7 +757,7 @@ if [ "$MODE" = "install" ]; then
   # 1. Gói hệ thống
   log "Cài gói hệ thống (apt)..."
   $SUDO apt-get update -y || warn "apt update lỗi (kiểm tra mạng) — thử cài tiếp"
-  for pkg in python3 python3-venv python3-pip libopenblas0 libgl1 v4l-utils curl i2c-tools python3-smbus psmisc; do
+  for pkg in python3 python3-venv python3-pip libopenblas0 libgl1 v4l-utils curl i2c-tools python3-smbus psmisc dnsmasq-base; do
     $SUDO apt-get install -y "$pkg" >/dev/null 2>&1 || warn "Bỏ qua gói $pkg (không cài được)"
   done
   if [ "$CAMERA" != "usb" ]; then
@@ -917,7 +967,9 @@ if [ "$WITH_SERVICE" -eq 1 ]; then
 else
   echo "   Chạy tay        : cd $APP_DIR && $VENV_DIR/bin/python server/app.py"
 fi
+[ "$WITH_AP" -eq 1 ] && [ -n "$AP_PASS" ] && echo "   WiFi phát       : $AP_SSID — http://$AP_IP:$PORT"
 echo "   Cấu hình        : $ENV_FILE"
 [ "$HAS_PICAM2" -eq 1 ] && echo "   (Camera CSI: bật trong 'sudo raspi-config' > Interface, reboot nếu chưa chạy được)"
 echo "   Lưu ý           : nếu vừa được thêm vào nhóm video/dialout/gpio/i2c, đăng xuất/đăng nhập lại để chạy tay."
+setup_ap
 exit 0
