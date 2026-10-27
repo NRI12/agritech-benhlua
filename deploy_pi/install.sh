@@ -436,6 +436,8 @@ bring_up_4g_rndis() {
   if have nmcli; then
     cur="$(nmcli -t -f GENERAL.CONNECTION device show "$ifc" 2>/dev/null | cut -d: -f2-)"
     if [ -z "$cur" ] || [ "$cur" = "--" ]; then
+      # xoá profile cũ trùng tên (mỗi lần chạy trước đây đều tạo thêm 1 cái -> bị trùng hàng chục)
+      while $SUDO nmcli connection delete "$NM_CON" >/dev/null 2>&1; do :; done
       log "Tạo kết nối '$NM_CON' cho $ifc (DHCP, ưu tiên thấp)..."
       $SUDO nmcli connection add type ethernet ifname "$ifc" con-name "$NM_CON" connection.autoconnect yes \
         ipv4.method auto ipv4.route-metric 700 ipv4.dns-priority 700 ipv6.method ignore 802-3-ethernet.mtu 1400 >/dev/null 2>&1 || warn "Không tạo được kết nối $NM_CON"
