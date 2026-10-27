@@ -229,6 +229,15 @@ check_sensor_ports() {
   elif [ "$IS_PI" -eq 1 ]; then
     info "I2C chưa bật (sudo raspi-config > Interface Options > I2C) — chỉ cần nếu dùng cảm biến I2C/ADC"
   fi
+  local w1
+  w1="$(ls -d /sys/bus/w1/devices/28-* 2>/dev/null | head -1)"
+  if [ -n "$w1" ]; then
+    ok "DS18B20 (nhiệt độ) trên 1-Wire: $(basename "$w1") = $(sed -n 's/.*t=//p' "$w1/w1_slave" 2>/dev/null | awk '{printf "%.1f", $1/1000}') °C"
+  elif [ -d /sys/bus/w1/devices ]; then
+    warn "1-Wire đã bật nhưng không thấy DS18B20 (dây DATA GPIO4, trở kéo lên 4.7k, nguồn 3.3V)"
+  elif [ "$IS_PI" -eq 1 ]; then
+    info "Chưa bật 1-Wire cho DS18B20: thêm dòng dtoverlay=w1-gpio vào /boot/firmware/config.txt rồi reboot"
+  fi
   if [ -e /dev/gpiomem ] || [ -e /dev/gpiochip0 ]; then
     ok "GPIO truy cập được"
     in_group gpio || info "User $RUN_USER chưa thuộc nhóm 'gpio' (cần nếu đọc DHT: sudo usermod -aG gpio $RUN_USER)"
