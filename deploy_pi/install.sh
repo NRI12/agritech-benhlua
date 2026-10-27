@@ -246,7 +246,8 @@ mobile_iface() {
   return 1
 }
 # Internet qua đúng giao diện này? in IP công khai nếu có
-iface_internet() { curl -sS --max-time 10 --interface "$1" https://api.ipify.org 2>/dev/null | grep -E '^[0-9a-fA-F:.]+$'; }
+# Dùng 1.1.1.1 (địa chỉ IP, không cần DNS) để biết đường truyền dữ liệu có thông không, tách khỏi lỗi DNS.
+iface_internet() { curl -sS --max-time 10 --interface "$1" https://1.1.1.1/cdn-cgi/trace 2>/dev/null | sed -n 's/^ip=//p' | head -1; }
 mm_idx() { mmcli -L 2>/dev/null | grep -oE '/Modem/[0-9]+' | head -1 | grep -oE '[0-9]+$'; }
 
 # Hỏi modem qua lệnh AT (chỉ khi ModemManager KHÔNG giữ cổng). Cần quyền đọc /dev/ttyUSB*.
@@ -289,6 +290,12 @@ print("port=" + port)
 if os.environ.get("SET_APN"):
     r = at(fd, 'AT+CGDCONT=1,"IP","%s"' % os.environ["SET_APN"])
     print("apn_set=" + ("OK" if "OK" in r else "ERR"))
+    # APN mới chỉ có hiệu lực sau khi modem gắn lại mạng: tắt phiên dữ liệu, detach rồi attach
+    at(fd, "AT+CGACT=0,1", 5); at(fd, "AT+CGATT=0", 8); time.sleep(1); at(fd, "AT+CGATT=1", 15)
+    r = at(fd, "AT+CGACT=1,1", 15); print("pdp_activate=" + ("OK" if "OK" in r else "ERR"))
+m = re.search(r'\+CGDCONT:\s*1,"[^"]*","([^"]*)"', at(fd, "AT+CGDCONT?")); print("apn_now=" + (m.group(1) if m else ""))
+m = re.search(r"\+CGACT:\s*1,(\d)", at(fd, "AT+CGACT?")); print("pdp=" + (m.group(1) if m else "?"))
+m = re.search(r'\+CGPADDR:\s*1,"?([0-9.]+)', at(fd, "AT+CGPADDR=1")); print("pdp_ip=" + (m.group(1) if m else ""))
 m = re.search(r"\+CPIN:\s*(.+)", at(fd, "AT+CPIN?"));    print("sim=" + (m.group(1).strip() if m else "?"))
 m = re.search(r"\+CSQ:\s*(\d+),", at(fd, "AT+CSQ"))
 if m:
@@ -344,6 +351,10 @@ check_4g() {
         ok "Modem trả lời lệnh AT trên $(printf '%s' "$out" | sed -n 's/^port=//p')"
         if [ "$sim" = "READY" ]; then ok "SIM sẵn sàng"; else warn "SIM: ${sim:-?} (không phải READY — chưa cắm SIM, SIM sai chiều hoặc đang khoá PIN)"; fi
         info "Nhà mạng: ${opn:-chưa đăng ký}; tín hiệu: ${dbm:-?} dBm"
+        local apn_now pdp pdp_ip
+        apn_now="$(printf '%s' "$out" | sed -n 's/^apn_now=//p')"; pdp="$(printf '%s' "$out" | sed -n 's/^pdp=//p')"; pdp_ip="$(printf '%s' "$out" | sed -n 's/^pdp_ip=//p')"
+        info "APN trong modem: ${apn_now:-?}; phiên dữ liệu (PDP): $([ "$pdp" = 1 ] && echo "đã kích hoạt${pdp_ip:+, IP $pdp_ip}" || echo "CHƯA kích hoạt")"
+        [ "$pdp" = 1 ] || warn "Modem chưa mở phiên dữ liệu — thường do APN sai/chưa áp dụng hoặc SIM chưa bật data. Thử: ./install.sh --restart --apn <APN>"
         case "$reg2" in
           1) ok "Đã đăng ký mạng (nhà mạng gốc)";;
           5) ok "Đã đăng ký mạng (roaming)";;
@@ -360,7 +371,7 @@ check_4g() {
       else
         pub="$(iface_internet "$ifc")"
         if [ -n "$pub" ]; then ok "Internet qua 4G ($ifc, $ip4) hoạt động — IP công khai $pub"; FOURG_SUMMARY="$FOURG_SUMMARY; Internet qua $ifc OK (IP $pub)"
-        else warn "$ifc có IP $ip4 nhưng không ra được Internet (sai APN, hết data hoặc modem chưa quay số)"; fi
+        else warn "$ifc có IP $ip4 nhưng không ra được Internet bằng địa chỉ IP (modem chưa mở phiên dữ liệu, sai APN hoặc hết data)"; fi
       fi
     fi
   fi
@@ -369,7 +380,12 @@ check_4g() {
     if curl -sS --max-time 6 -o /dev/null -w '%{http_code}' https://api.openai.com/ 2>/dev/null | grep -qE '^[1-5][0-9][0-9]$'; then
       ok "Kết nối được tới api.openai.com"
     else
-      warn "Không tới được api.openai.com — ChatGPT sẽ tự dùng tư vấn có sẵn. Kiểm tra WiFi/4G/DNS"
+      if curl -sS --max-time 6 -o /dev/null https://1.1.1.1/ 2>/dev/null; then
+        warn "Ra được Internet bằng IP nhưng KHÔNG phân giải được tên miền (lỗi DNS) — xem: resolvectl status; nmcli device show | grep DNS"
+      else
+        warn "Không tới được api.openai.com và cũng không ra được Internet bằng IP — kiểm tra WiFi/Ethernet/4G và đường mặc định"
+      fi
+      info "Đường mặc định: $(ip -4 route show default 2>/dev/null | head -3 | tr '\n' ';')"
     fi
   fi
 }
@@ -385,7 +401,9 @@ bring_up_4g_rndis() {
   PROBE_SUDO="$SUDO"
   if [ -n "$APN" ]; then
     local o; o="$(at_probe "$APN")"
-    if printf '%s' "$o" | grep -q '^apn_set=OK'; then ok "Đã đặt APN '$APN' cho SIM (lưu trong modem)"
+    if printf '%s' "$o" | grep -q '^apn_set=OK'; then
+      ok "Đã đặt APN '$APN' cho SIM (lưu trong modem) và gắn lại mạng"
+      printf '%s' "$o" | grep -q '^pdp_activate=OK' || warn "Modem chưa xác nhận mở phiên dữ liệu sau khi đổi APN (xem kết quả kiểm tra bên dưới)"
     else warn "Không đặt được APN qua lệnh AT — kiểm tra quyền cổng ttyUSB (nhóm dialout) hoặc modem không trả lời"; fi
   else
     info "Chưa chỉ định --apn; giữ APN hiện có trong modem (nếu không lên mạng, chạy lại với --apn <APN nhà mạng>, vd Viettel: v-internet)"
@@ -395,11 +413,11 @@ bring_up_4g_rndis() {
     if [ -z "$cur" ] || [ "$cur" = "--" ]; then
       log "Tạo kết nối '$NM_CON' cho $ifc (DHCP, ưu tiên thấp)..."
       $SUDO nmcli connection add type ethernet ifname "$ifc" con-name "$NM_CON" connection.autoconnect yes \
-        ipv4.method auto ipv4.route-metric 700 ipv6.method ignore >/dev/null 2>&1 || warn "Không tạo được kết nối $NM_CON"
+        ipv4.method auto ipv4.route-metric 700 ipv4.dns-priority 700 ipv6.method ignore >/dev/null 2>&1 || warn "Không tạo được kết nối $NM_CON"
       cur="$NM_CON"
     else
       # NetworkManager đã tự tạo profile cho $ifc: hạ ưu tiên để không cướp đường mặc định của WiFi/Ethernet
-      $SUDO nmcli connection modify "$cur" ipv4.route-metric 700 ipv6.method ignore >/dev/null 2>&1 \
+      $SUDO nmcli connection modify "$cur" ipv4.route-metric 700 ipv4.dns-priority 700 ipv6.method ignore >/dev/null 2>&1 \
         && ok "Đã hạ ưu tiên đường 4G ('$cur', metric 700) — WiFi/Ethernet vẫn được dùng trước"
     fi
     $SUDO timeout 40 nmcli connection up "$cur" ifname "$ifc" >/dev/null 2>&1 || warn "Không bật được kết nối '$cur' trên $ifc"
@@ -407,7 +425,7 @@ bring_up_4g_rndis() {
     warn "Không có NetworkManager (nmcli): không tự xin IP cho $ifc được — dùng dhcpcd/dhclient thủ công"
   fi
   local n
-  for n in $(seq 1 15); do ip4="$(ip -4 -o addr show dev "$ifc" 2>/dev/null | awk '{print $4}' | head -1)"; [ -n "$ip4" ] && break; sleep 1; done
+  for n in $(seq 1 20); do ip4="$(ip -4 -o addr show dev "$ifc" 2>/dev/null | awk '{print $4}' | head -1)"; [ -n "$ip4" ] && break; sleep 1; done
   if [ -z "$ip4" ]; then warn "$ifc vẫn chưa có IPv4 — modem chưa đăng ký mạng/chưa quay số. Kiểm tra SIM, anten, APN"; return 0; fi
   info "Giao diện 4G: $ifc ($ip4)"
   pub="$(iface_internet "$ifc")"
@@ -446,7 +464,7 @@ bring_up_4g() {
   fi
   if ! $SUDO nmcli -t -f NAME connection show 2>/dev/null | grep -qx "$NM_CON"; then
     log "Tạo kết nối 4G '$NM_CON'${APN:+ (APN $APN)}..."
-    local args=(connection add type gsm ifname '*' con-name "$NM_CON" connection.autoconnect yes ipv4.route-metric 700 ipv6.method ignore)
+    local args=(connection add type gsm ifname '*' con-name "$NM_CON" connection.autoconnect yes ipv4.route-metric 700 ipv4.dns-priority 700 ipv6.method ignore)
     [ -n "$APN" ] && args+=(gsm.apn "$APN")
     $SUDO nmcli "${args[@]}" >/dev/null 2>&1 || { warn "Không tạo được kết nối 4G bằng nmcli"; return 0; }
   elif [ -n "$APN" ]; then
@@ -729,9 +747,11 @@ if { [ "$WITH_SERVICE" -eq 1 ] && [ -f "$SERVICE_FILE" ]; } || [ "$WITH_SERVICE"
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
-IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+# IP LAN thật (bỏ giao diện của modem 4G, vd 192.168.225.x); liệt kê tất cả nếu có nhiều
+IPS="$(ip -4 -o addr show scope global 2>/dev/null | awk '$2!~/^(usb[0-9]|wwan[0-9]|ppp[0-9]|docker|veth|br-|lo)/{sub(/\/.*/,"",$4); printf "%s ", $4}')"
+IP="${IPS%% *}"
 head_ "Hoàn tất"
-echo "   Dashboard (LAN) : http://${IP:-<ip-pi>}:$PORT"
+echo "   Dashboard (LAN) : http://${IP:-<ip-pi>}:$PORT${IPS:+   (các IP: $IPS)}"
 [ -n "$TUNNEL_URL" ] && echo "   Truy cập từ xa  : $TUNNEL_URL"
 [ "$WITH_4G" -eq 1 ] && [ "$MODEM_USB" -eq 1 ] && echo "   4G              : $FOURG_SUMMARY"
 if [ "$WITH_SERVICE" -eq 1 ]; then
