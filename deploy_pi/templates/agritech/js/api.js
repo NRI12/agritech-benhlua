@@ -152,14 +152,12 @@ async function pollSensors() {
     setText('valK', s.k.value);   applyBadge('badgeK', s.k.badge);
     setText('valPh', s.ph.value); applyBadge('badgePh', s.ph.badge);
     const t = setCard('valTemp', 'tempNote', s.temp, 'hdrTemp', '°C');
-    const h = setCard('valHum', 'humNote', s.humidity, 'hdrHum', '%');
     const so = s.soil_moisture || {};
-    if (so.available && so.calibrated) setCard('valSoil', 'soilNote', so);
-    else if (so.available) { setText('valSoil', '—'); setText('soilNote', so.message); }
-    else setCard('valSoil', 'soilNote', so);
-    const b = $('sensorBanner'); if (b) b.hidden = t && h;
+    // chưa hiệu chuẩn -> không có %, chỉ hiện điện áp thô trong ghi chú
+    setCard('valSoil', 'soilNote', so.calibrated ? so : { available: false, message: so.message }, 'hdrSoil', '%');
+    const b = $('sensorBanner'); if (b) b.hidden = t && so.available;
   } catch (e) {
-    ['valTemp', 'valHum', 'valSoil', 'hdrTemp', 'hdrHum'].forEach(id => setText(id, '—'));
+    ['valTemp', 'valSoil', 'hdrTemp', 'hdrSoil'].forEach(id => setText(id, '—'));
     const b = $('sensorBanner'); if (b) b.hidden = false;
   }
 }
