@@ -434,7 +434,7 @@ bring_up_4g_rndis() {
   if [ -n "$pub" ]; then
     ok "Internet qua 4G hoạt động (IP công khai $pub)"; FOURG_SUMMARY="đang kết nối ($ifc, IP $pub)"
     # 4G tốt: gỡ cách ly (nếu trước đó đã cách ly) để làm đường dự phòng bình thường
-    if have nmcli && [ "$($SUDO nmcli -g ipv4.never-default connection show "$cur" 2>/dev/null)" = "yes" ]; then
+    if have nmcli && [ "$($SUDO nmcli -g ipv4.never-default connection show "$cur" 2>/dev/null | head -1)" = "yes" ]; then
       $SUDO nmcli connection modify "$cur" ipv4.never-default no ipv4.ignore-auto-dns no >/dev/null 2>&1
       $SUDO nmcli device reapply "$ifc" >/dev/null 2>&1; info "Đã gỡ cách ly đường 4G"
     fi
@@ -547,13 +547,25 @@ diag_4g() {
   info "Đường tới 1.1.1.1 qua $ifc: $(ip route get 1.1.1.1 oif "$ifc" 2>&1 | head -1)"
   info "ping qua $ifc: $(ping -c3 -W3 -I "$ifc" 1.1.1.1 2>&1 | tail -2 | tr '\n' ' ')"
   info "curl qua $ifc: $(curl -sS -o /dev/null -w 'http=%{http_code} kết_nối=%{time_connect}s tổng=%{time_total}s' --max-time 10 --interface "$ifc" http://1.1.1.1/ 2>&1 | tail -1)"
+  info "MTU $ifc: $(ip -o link show "$ifc" 2>/dev/null | grep -oE 'mtu [0-9]+')"
+  info "Thử gói nhỏ (generate_204) qua $ifc: $(curl -sS -o /dev/null -w 'http=%{http_code} tổng=%{time_total}s' --max-time 12 --interface "$ifc" http://connectivitycheck.gstatic.com/generate_204 2>&1 | tail -1)  (204 = thông)"
   info "rp_filter: all=$(sysctl -n net.ipv4.conf.all.rp_filter 2>/dev/null) $ifc=$(sysctl -n "net.ipv4.conf.$ifc.rp_filter" 2>/dev/null)  (1 = nghiêm ngặt, có thể chặn gói trả về khi có 2 đường mặc định)"
   info "DNS của $ifc: $(nmcli -g IP4.DNS device show "$ifc" 2>/dev/null | tr '\n' ' ')"
-  info "Kết nối $NM_CON: never-default=$(nmcli -g ipv4.never-default connection show "$NM_CON" 2>/dev/null) ignore-auto-dns=$(nmcli -g ipv4.ignore-auto-dns connection show "$NM_CON" 2>/dev/null)"
+  info "Kết nối $NM_CON: never-default=$(nmcli -g ipv4.never-default connection show "$NM_CON" 2>/dev/null | head -1) ignore-auto-dns=$(nmcli -g ipv4.ignore-auto-dns connection show "$NM_CON" 2>/dev/null | head -1) (số profile trùng tên: $(nmcli -t -f NAME connection show 2>/dev/null | grep -cx "$NM_CON"))"
   info "Phân giải tên miền api.openai.com: $(getent hosts api.openai.com 2>&1 | head -1)$(getent hosts api.openai.com >/dev/null 2>&1 || echo 'THẤT BẠI')"
   echo "  --- Modem (lệnh AT) ---"
   local o; o="$(at_raw $'AT+CPSI?\nAT+CREG?\nAT+CGREG?\nAT+CEREG?\nAT+CNSMOD?\nAT+CGDCONT?\nAT+CGACT?\nAT+CGPADDR\nAT+CSQ\nAT+COPS?')"
   if [ -n "$o" ]; then printf '%s\n' "$o" | sed 's/^/    /'
+    local cpsi rsrp rsrq rp q
+    cpsi="$(printf '%s\n' "$o" | sed -n 's/^AT+CPSI?  *//p' | head -1)"
+    rsrq="$(printf '%s' "$cpsi" | cut -d, -f11)"; rsrp="$(printf '%s' "$cpsi" | cut -d, -f12)"
+    if [[ "$rsrp" =~ ^-?[0-9]+$ ]]; then
+      rp=$((rsrp / 10)); q="khá"
+      [ "$rp" -ge -90 ] && q="tốt"
+      [ "$rp" -lt -100 ] && q="yếu (dễ rớt gói, nên đổi vị trí/anten)"
+      [ "$rp" -lt -110 ] && q="rất yếu"
+      info "Sóng LTE: RSRP ${rp} dBm → $q; RSRQ $(( ${rsrq:-0} / 10 )) dB"
+    fi
   else warn "Không hỏi được modem qua cổng AT (thiếu quyền dialout hoặc không có cổng)"; fi
   info "Nếu PDP đã kích hoạt mà vẫn không ra Internet: kiểm tra gói data của SIM (số dư, đã bật data chưa) theo hướng dẫn của nhà mạng."
 }
