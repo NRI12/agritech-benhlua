@@ -16,6 +16,8 @@
 #   --usb-index N             index webcam USB (mặc định: 0)
 #   --port N                  cổng web (mặc định: 5000)
 #   --apn TÊN                 APN của SIM 4G (vd: v-internet, m3-world; bỏ trống = để hệ thống tự dò)
+#   --wifi-ssid TÊN           tạo kết nối WiFi tự động nối (cần kèm --wifi-pass); lưu trong NetworkManager nên chỉ cần nhập 1 lần
+#   --wifi-pass MẬT_KHẨU      mật khẩu WiFi (KHÔNG ghi vào mã nguồn/git)
 #   --no-4g                   không bật/kiểm tra kết nối 4G
 #   --tunnel                  cài Cloudflare Tunnel (xem từ xa qua 4G, in URL)
 #   --no-service              không tạo service tự khởi động
@@ -38,6 +40,7 @@ CAMERA="auto"; USB_INDEX="0"; PORT="5000"; APN=""
 MODE="install"            # install | restart | check | uninstall
 WITH_TUNNEL=0; WITH_SERVICE=1; WITH_4G=1
 CAMERA_GIVEN=0; USB_GIVEN=0; PORT_GIVEN=0
+WIFI_SSID=""; WIFI_PASS=""
 
 # ── Hiển thị ────────────────────────────────────────────────────────────────
 WARN=0; FAIL_CAM=0
@@ -58,6 +61,8 @@ while [ $# -gt 0 ]; do
     --usb-index)  USB_INDEX="${2:?thiếu giá trị}"; USB_GIVEN=1; shift 2 ;;
     --port)       PORT="${2:?thiếu giá trị}"; PORT_GIVEN=1; shift 2 ;;
     --apn)        APN="${2:?thiếu giá trị}"; shift 2 ;;
+    --wifi-ssid)  WIFI_SSID="${2:?thiếu giá trị}"; shift 2 ;;
+    --wifi-pass)  WIFI_PASS="${2:?thiếu giá trị}"; shift 2 ;;
     --no-4g)      WITH_4G=0; shift ;;
     --tunnel)     WITH_TUNNEL=1; shift ;;
     --no-service) WITH_SERVICE=0; shift ;;
@@ -487,6 +492,30 @@ bring_up_4g_rndis() {
   fi
 }
 
+# Tạo profile WiFi (ưu tiên cao, tự nối lại khi mất) rồi nối ngay. Chỉ chạy khi có --wifi-ssid.
+setup_wifi() {
+  [ -n "$WIFI_SSID" ] || return 0
+  head_ "WiFi $WIFI_SSID"
+  have nmcli || { warn "Không có NetworkManager (nmcli) — không cấu hình được WiFi"; return 0; }
+  [ -n "$WIFI_PASS" ] || { warn "Thiếu --wifi-pass cho WiFi '$WIFI_SSID'"; return 0; }
+  [ "${#WIFI_PASS}" -ge 8 ] || { warn "Mật khẩu WiFi WPA phải từ 8 ký tự"; return 0; }
+  local con="agritech-wifi"
+  $SUDO nmcli radio wifi on >/dev/null 2>&1
+  while $SUDO nmcli connection delete "$con" >/dev/null 2>&1; do :; done
+  if $SUDO nmcli connection add type wifi con-name "$con" ssid "$WIFI_SSID" \
+       wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$WIFI_PASS" \
+       connection.autoconnect yes connection.autoconnect-priority 100 >/dev/null 2>&1; then
+    ok "Đã lưu WiFi '$WIFI_SSID' (tự nối, ưu tiên cao hơn các WiFi khác)"
+  else warn "Không tạo được kết nối WiFi '$WIFI_SSID'"; return 0; fi
+  $SUDO nmcli device wifi rescan >/dev/null 2>&1; sleep 3
+  local upout
+  if upout="$($SUDO timeout 40 nmcli connection up "$con" 2>&1)"; then
+    ok "Đã nối WiFi '$WIFI_SSID' (IP: $(ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}' | head -1))"
+  else
+    warn "Chưa nối được WiFi '$WIFI_SSID': $(printf '%s' "$upout" | tail -1) — kiểm tra tên/mật khẩu hoặc WiFi có trong tầm phủ sóng; sẽ tự nối khi bắt được sóng"
+  fi
+}
+
 bring_up_4g() {
   [ "$WITH_4G" -eq 1 ] && [ "$MODEM_USB" -eq 1 ] || return 0
   head_ "Bật 4G"
@@ -742,6 +771,7 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 log "Kiểm tra thiết bị phần cứng..."
 check_board; check_camera; check_sensor_ports
+setup_wifi
 bring_up_4g            # bật 4G trước rồi mới kiểm tra mạng, để kết quả phản ánh đúng
 check_4g
 summary_checks

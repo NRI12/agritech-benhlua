@@ -112,3 +112,13 @@ API và cấu hình: [deploy_pi/server/README.md](deploy_pi/server/README.md).
 - **Nhiệt độ — DS18B20** (1-Wire): DQ → GPIO25 (chân vật lý 22), trở kéo lên 4.7 kΩ giữa DATA và 3.3V. Thêm `dtoverlay=w1-gpio,gpiopin=25` vào `/boot/firmware/config.txt`, reboot. Kiểm tra: `ls /sys/bus/w1/devices/` phải có thư mục `28-…`.
 - **Độ ẩm đất — cảm biến điện trở (module LM393)**: chân AO → A0 của ADS1115 (I2C 0x48). Hiệu chuẩn bằng `./install.sh --calib-soil`: làm theo hướng dẫn (để khô ngoài không khí, rồi nhúng hai chân kim loại vào nước), script tự ghi `SOIL_DRY_V`/`SOIL_WET_V` vào `agritech.env` và khởi động lại service. Chưa hiệu chuẩn thì dashboard chỉ báo điện áp thô, không hiển thị %.
 - **Độ ẩm không khí**: chưa có cảm biến, dashboard báo chưa sẵn sàng. Dinh dưỡng đất N, P, K, pH vẫn là dữ liệu giả lập.
+
+## WiFi tự nối
+
+Nhập 1 lần (mật khẩu chỉ lưu trong NetworkManager trên Pi, không ghi vào git):
+
+```
+cd deploy_pi && ./install.sh --restart --wifi-ssid TEN_WIFI --wifi-pass 'MAT_KHAU'
+```
+
+Script tạo kết nối `agritech-wifi` (tự nối lại, ưu tiên cao hơn WiFi khác) và nối ngay. Các lần `--restart` sau không cần nhập lại.
