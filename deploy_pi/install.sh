@@ -249,7 +249,13 @@ mobile_iface() {
 }
 # Internet qua đúng giao diện này? in IP công khai nếu có
 # Dùng 1.1.1.1 (địa chỉ IP, không cần DNS) để biết đường truyền dữ liệu có thông không, tách khỏi lỗi DNS.
-iface_internet() { curl -sS --max-time 10 --interface "$1" https://1.1.1.1/cdn-cgi/trace 2>/dev/null | sed -n 's/^ip=//p' | head -1; }
+iface_internet() {
+  local ip
+  ip="$(curl -sS --max-time 10 --interface "$1" https://1.1.1.1/cdn-cgi/trace 2>/dev/null | sed -n 's/^ip=//p' | head -1)"
+  if [ -n "$ip" ]; then echo "$ip"; return 0; fi
+  # dự phòng: một đích khác (HTTP 204 = thông); không biết IP công khai thì trả "ok"
+  [ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 --interface "$1" http://connectivitycheck.gstatic.com/generate_204 2>/dev/null)" = "204" ] && echo "ok"
+}
 mm_idx() { mmcli -L 2>/dev/null | grep -oE '/Modem/[0-9]+' | head -1 | grep -oE '[0-9]+$'; }
 
 # Hỏi modem qua lệnh AT (chỉ khi ModemManager KHÔNG giữ cổng). Cần quyền đọc /dev/ttyUSB*.
@@ -372,7 +378,7 @@ check_4g() {
       if [ -z "$ip4" ]; then warn "$ifc chưa có địa chỉ IPv4 — chạy ./install.sh --restart để xin IP (DHCP) cho 4G"
       else
         pub="$(iface_internet "$ifc")"
-        if [ -n "$pub" ]; then ok "Internet qua 4G ($ifc, $ip4) hoạt động — IP công khai $pub"; FOURG_SUMMARY="$FOURG_SUMMARY; Internet qua $ifc OK (IP $pub)"
+        if [ -n "$pub" ]; then ok "Internet qua 4G ($ifc, $ip4) hoạt động${pub:+ — IP công khai $pub}"; FOURG_SUMMARY="$FOURG_SUMMARY; Internet qua $ifc OK (IP $pub)"
         else warn "$ifc có IP $ip4 nhưng không ra được Internet bằng địa chỉ IP (modem chưa mở phiên dữ liệu, sai APN hoặc hết data)"; fi
       fi
     fi
@@ -415,11 +421,11 @@ bring_up_4g_rndis() {
     if [ -z "$cur" ] || [ "$cur" = "--" ]; then
       log "Tạo kết nối '$NM_CON' cho $ifc (DHCP, ưu tiên thấp)..."
       $SUDO nmcli connection add type ethernet ifname "$ifc" con-name "$NM_CON" connection.autoconnect yes \
-        ipv4.method auto ipv4.route-metric 700 ipv4.dns-priority 700 ipv6.method ignore >/dev/null 2>&1 || warn "Không tạo được kết nối $NM_CON"
+        ipv4.method auto ipv4.route-metric 700 ipv4.dns-priority 700 ipv6.method ignore 802-3-ethernet.mtu 1400 >/dev/null 2>&1 || warn "Không tạo được kết nối $NM_CON"
       cur="$NM_CON"
     else
       # NetworkManager đã tự tạo profile cho $ifc: hạ ưu tiên để không cướp đường mặc định của WiFi/Ethernet
-      $SUDO nmcli connection modify "$cur" ipv4.route-metric 700 ipv4.dns-priority 700 ipv6.method ignore >/dev/null 2>&1 \
+      $SUDO nmcli connection modify "$cur" ipv4.route-metric 700 ipv4.dns-priority 700 ipv6.method ignore 802-3-ethernet.mtu 1400 >/dev/null 2>&1 \
         && ok "Đã hạ ưu tiên đường 4G ('$cur', metric 700) — WiFi/Ethernet vẫn được dùng trước"
     fi
     $SUDO timeout 40 nmcli connection up "$cur" ifname "$ifc" >/dev/null 2>&1 || warn "Không bật được kết nối '$cur' trên $ifc"
@@ -433,6 +439,7 @@ bring_up_4g_rndis() {
   for n in 1 2 3; do pub="$(iface_internet "$ifc")"; [ -n "$pub" ] && break; sleep 5; done
   if [ -n "$pub" ]; then
     ok "Internet qua 4G hoạt động (IP công khai $pub)"; FOURG_SUMMARY="đang kết nối ($ifc, IP $pub)"
+    [ "$pub" = "ok" ] && FOURG_SUMMARY="đang kết nối ($ifc)"
     # 4G tốt: gỡ cách ly (nếu trước đó đã cách ly) để làm đường dự phòng bình thường
     if have nmcli && [ "$($SUDO nmcli -g ipv4.never-default connection show "$cur" 2>/dev/null | head -1)" = "yes" ]; then
       $SUDO nmcli connection modify "$cur" ipv4.never-default no ipv4.ignore-auto-dns no >/dev/null 2>&1
