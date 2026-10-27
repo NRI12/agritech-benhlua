@@ -424,6 +424,12 @@ bring_up_4g_rndis() {
   local ifc="$1" cur ip4 pub n
   info "Modem chạy chế độ RNDIS/ECM trên giao diện $ifc — không cần ModemManager"
   PROBE_SUDO="$SUDO"
+  # ModemManager giữ cổng dữ liệu của modem RNDIS (ID_MM_CANDIDATE) làm NetworkManager không quản lý được usb0
+  if systemctl is-active --quiet ModemManager 2>/dev/null; then
+    warn "ModemManager đang chạy và giữ modem RNDIS — tắt nó (chế độ RNDIS không cần) để NetworkManager nhận $ifc"
+    $SUDO systemctl disable --now ModemManager >/dev/null 2>&1 || warn "Không tắt được ModemManager"
+    $SUDO systemctl restart NetworkManager >/dev/null 2>&1; sleep 8
+  fi
   if [ -n "$APN" ]; then
     local o; o="$(at_probe "$APN")"
     if printf '%s' "$o" | grep -q '^apn_set=OK'; then
@@ -435,7 +441,8 @@ bring_up_4g_rndis() {
   fi
   if have nmcli; then
     cur="$(nmcli -t -f GENERAL.CONNECTION device show "$ifc" 2>/dev/null | cut -d: -f2-)"
-    if [ -z "$cur" ] || [ "$cur" = "--" ]; then
+    # "connected (externally)": NM thấy thiết bị nhưng chưa có profile thật -> coi như chưa có
+    if [ -z "$cur" ] || [ "$cur" = "--" ] || ! nmcli -t -f NAME connection show 2>/dev/null | grep -qx "$cur"; then
       # xoá profile cũ trùng tên (mỗi lần chạy trước đây đều tạo thêm 1 cái -> bị trùng hàng chục)
       while $SUDO nmcli connection delete "$NM_CON" >/dev/null 2>&1; do :; done
       log "Tạo kết nối '$NM_CON' cho $ifc (DHCP, ưu tiên thấp)..."
