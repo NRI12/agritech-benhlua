@@ -127,16 +127,21 @@ check_camera() {
     out="$("$PY" - <<'EOF' 2>/dev/null
 try:
     from picamera2 import Picamera2
-    cams = Picamera2.global_camera_info()
-    print(len(cams), *[c.get("Model", "?") for c in cams])
+    for c in Picamera2.global_camera_info():
+        kind = "usb" if "usb" in str(c.get("Id", "")).lower() else "csi"
+        print(kind + "|" + str(c.get("Model", "?")))
 except Exception as e:
-    print("ERR", e)
+    print("err|" + str(e))
 EOF
 )"
-    case "$out" in
-      "0"*|ERR*|"") if [ "$IS_PI" -eq 1 ]; then warn "picamera2 có nhưng không thấy camera CSI ${out:+($out)} — kiểm tra cáp ribbon (đúng chiều, cắm chặt)"; else info "picamera2 có nhưng không thấy camera CSI"; fi;;
-      *) csi_ok=1; ok "Camera CSI: $out";;
-    esac
+    # libcamera liệt kê cả webcam USB; chỉ camera có Id không chứa "usb" mới là CSI thật
+    if printf '%s\n' "$out" | grep -q '^csi|'; then
+      csi_ok=1; ok "Camera CSI: $(printf '%s\n' "$out" | sed -n 's/^csi|//p' | head -1)"
+    elif printf '%s\n' "$out" | grep -q '^usb|'; then
+      info "libcamera chỉ thấy webcam USB ($(printf '%s\n' "$out" | sed -n 's/^usb|//p' | head -1)), không có camera CSI"
+    elif [ "$IS_PI" -eq 1 ]; then
+      warn "picamera2 có nhưng không thấy camera CSI ${out:+($out)} — nếu có camera CSI, kiểm tra cáp ribbon (đúng chiều, cắm chặt)"
+    else info "picamera2 có nhưng không thấy camera CSI"; fi
   else
     if [ "$IS_PI" -eq 1 ]; then warn "Chưa cài python3-picamera2 — camera CSI không dùng được"; else info "picamera2 không có trên máy này"; fi
   fi
@@ -232,13 +237,23 @@ check_sensor_ports() {
 # 4G (SIM7600): kiểm tra, và (nếu bật) kết nối qua ModemManager + NetworkManager
 # ═════════════════════════════════════════════════════════════════════════════
 FOURG_SUMMARY="chưa kiểm tra"
+PROBE_SUDO=""   # bring_up_4g đặt = $SUDO để mở được cổng AT; --check không dùng sudo
+# Modem SIM7600 ở chế độ RNDIS/ECM (PID 9011...) tự tạo card mạng (usb0/wwan0) — ModemManager không quản lý kiểu này
+mobile_iface() {
+  [ "$MODEM_USB" -eq 1 ] || return 1
+  local i
+  for i in usb0 wwan0 ppp0; do ip link show "$i" >/dev/null 2>&1 && { echo "$i"; return 0; }; done
+  return 1
+}
+# Internet qua đúng giao diện này? in IP công khai nếu có
+iface_internet() { curl -sS --max-time 10 --interface "$1" https://api.ipify.org 2>/dev/null | grep -E '^[0-9a-fA-F:.]+$'; }
 mm_idx() { mmcli -L 2>/dev/null | grep -oE '/Modem/[0-9]+' | head -1 | grep -oE '[0-9]+$'; }
 
 # Hỏi modem qua lệnh AT (chỉ khi ModemManager KHÔNG giữ cổng). Cần quyền đọc /dev/ttyUSB*.
 at_probe() {
   local ports; ports="$(ls /dev/ttyUSB2 /dev/ttyUSB3 /dev/ttyUSB1 /dev/ttyUSB0 /dev/ttyUSB4 2>/dev/null | tr '\n' ' ')"
   [ -n "$ports" ] || return 1
-  PORTS="$ports" python3 - <<'PYEOF' 2>/dev/null
+  $PROBE_SUDO env PORTS="$ports" SET_APN="${1:-}" python3 - <<'PYEOF' 2>/dev/null
 import os, re, select, sys, termios, time
 def open_port(p):
     fd = os.open(p, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
@@ -271,6 +286,9 @@ for p in os.environ["PORTS"].split():
 if fd is None:
     print("noat=1"); sys.exit(0)
 print("port=" + port)
+if os.environ.get("SET_APN"):
+    r = at(fd, 'AT+CGDCONT=1,"IP","%s"' % os.environ["SET_APN"])
+    print("apn_set=" + ("OK" if "OK" in r else "ERR"))
 m = re.search(r"\+CPIN:\s*(.+)", at(fd, "AT+CPIN?"));    print("sim=" + (m.group(1).strip() if m else "?"))
 m = re.search(r"\+CSQ:\s*(\d+),", at(fd, "AT+CSQ"))
 if m:
@@ -334,8 +352,17 @@ check_4g() {
         FOURG_SUMMARY="SIM ${sim:-?}, ${opn:-chưa đăng ký}, ${dbm:-?} dBm"
       fi
     fi
-    ifc="$(ip -o link show 2>/dev/null | grep -oE '(wwan[0-9]+|ppp[0-9]+|usb[0-9]+|enx[0-9a-f]+)' | head -1)"
-    [ -n "$ifc" ] && ok "Có giao diện mạng di động: $ifc"
+    ifc="$(mobile_iface)"
+    if [ -n "$ifc" ]; then
+      ok "Có giao diện mạng di động: $ifc (modem chạy chế độ RNDIS/ECM)"
+      local ip4 pub; ip4="$(ip -4 -o addr show dev "$ifc" 2>/dev/null | awk '{print $4}' | head -1)"
+      if [ -z "$ip4" ]; then warn "$ifc chưa có địa chỉ IPv4 — chạy ./install.sh --restart để xin IP (DHCP) cho 4G"
+      else
+        pub="$(iface_internet "$ifc")"
+        if [ -n "$pub" ]; then ok "Internet qua 4G ($ifc, $ip4) hoạt động — IP công khai $pub"; FOURG_SUMMARY="$FOURG_SUMMARY; Internet qua $ifc OK (IP $pub)"
+        else warn "$ifc có IP $ip4 nhưng không ra được Internet (sai APN, hết data hoặc modem chưa quay số)"; fi
+      fi
+    fi
   fi
 
   if have curl; then
@@ -347,61 +374,95 @@ check_4g() {
   fi
 }
 
-# Bật kết nối 4G: ModemManager + NetworkManager. Không đụng tới kết nối WiFi/Ethernet sẵn có.
+# Bật kết nối 4G. Hai kiểu modem:
+#  (1) RNDIS/ECM (có giao diện usb0/wwan0 sẵn, vd SIM7600 PID 9011): modem tự quay số; việc cần làm là
+#      đặt APN (lệnh AT) và xin IP bằng DHCP qua NetworkManager. KHÔNG dùng ModemManager.
+#  (2) Không có giao diện mạng: dùng ModemManager + NetworkManager (kiểu gsm).
+# Luôn đặt route-metric 700 nên WiFi/Ethernet vẫn được ưu tiên, 4G chỉ là dự phòng. Không đụng kết nối khác.
+bring_up_4g_rndis() {
+  local ifc="$1" cur ip4 pub
+  info "Modem chạy chế độ RNDIS/ECM trên giao diện $ifc — không cần ModemManager"
+  PROBE_SUDO="$SUDO"
+  if [ -n "$APN" ]; then
+    local o; o="$(at_probe "$APN")"
+    if printf '%s' "$o" | grep -q '^apn_set=OK'; then ok "Đã đặt APN '$APN' cho SIM (lưu trong modem)"
+    else warn "Không đặt được APN qua lệnh AT — kiểm tra quyền cổng ttyUSB (nhóm dialout) hoặc modem không trả lời"; fi
+  else
+    info "Chưa chỉ định --apn; giữ APN hiện có trong modem (nếu không lên mạng, chạy lại với --apn <APN nhà mạng>, vd Viettel: v-internet)"
+  fi
+  if have nmcli; then
+    cur="$(nmcli -t -f GENERAL.CONNECTION device show "$ifc" 2>/dev/null | cut -d: -f2-)"
+    if [ -z "$cur" ] || [ "$cur" = "--" ]; then
+      log "Tạo kết nối '$NM_CON' cho $ifc (DHCP, ưu tiên thấp)..."
+      $SUDO nmcli connection add type ethernet ifname "$ifc" con-name "$NM_CON" connection.autoconnect yes \
+        ipv4.method auto ipv4.route-metric 700 ipv6.method ignore >/dev/null 2>&1 || warn "Không tạo được kết nối $NM_CON"
+      cur="$NM_CON"
+    else
+      # NetworkManager đã tự tạo profile cho $ifc: hạ ưu tiên để không cướp đường mặc định của WiFi/Ethernet
+      $SUDO nmcli connection modify "$cur" ipv4.route-metric 700 ipv6.method ignore >/dev/null 2>&1 \
+        && ok "Đã hạ ưu tiên đường 4G ('$cur', metric 700) — WiFi/Ethernet vẫn được dùng trước"
+    fi
+    $SUDO timeout 40 nmcli connection up "$cur" ifname "$ifc" >/dev/null 2>&1 || warn "Không bật được kết nối '$cur' trên $ifc"
+  else
+    warn "Không có NetworkManager (nmcli): không tự xin IP cho $ifc được — dùng dhcpcd/dhclient thủ công"
+  fi
+  local n
+  for n in $(seq 1 15); do ip4="$(ip -4 -o addr show dev "$ifc" 2>/dev/null | awk '{print $4}' | head -1)"; [ -n "$ip4" ] && break; sleep 1; done
+  if [ -z "$ip4" ]; then warn "$ifc vẫn chưa có IPv4 — modem chưa đăng ký mạng/chưa quay số. Kiểm tra SIM, anten, APN"; return 0; fi
+  info "Giao diện 4G: $ifc ($ip4)"
+  pub="$(iface_internet "$ifc")"
+  if [ -n "$pub" ]; then ok "Internet qua 4G hoạt động (IP công khai $pub)"; FOURG_SUMMARY="đang kết nối ($ifc, IP $pub)"
+  else warn "$ifc có IP nhưng không ra được Internet (sai APN, hết data, hoặc SIM chưa kích hoạt data)"; fi
+}
+
 bring_up_4g() {
   [ "$WITH_4G" -eq 1 ] && [ "$MODEM_USB" -eq 1 ] || return 0
   head_ "Bật 4G"
+  local ifc; ifc="$(mobile_iface)"
+  if [ -n "$ifc" ]; then bring_up_4g_rndis "$ifc"; return 0; fi
+
+  # Kiểu (2): không có giao diện mạng sẵn -> ModemManager
   if ! have nmcli; then
-    warn "Không có NetworkManager (nmcli) — script không tự bật 4G được. Hệ điều hành cần Raspberry Pi OS Bookworm (dùng NetworkManager)."
+    warn "Không có NetworkManager (nmcli) — script không tự bật 4G được. Cần Raspberry Pi OS Bookworm (dùng NetworkManager)."
     return 0
   fi
   if ! have mmcli; then
     log "Cài ModemManager..."; $SUDO apt-get install -y modemmanager mobile-broadband-provider-info >/dev/null 2>&1 || { warn "Không cài được ModemManager"; return 0; }
   fi
   $SUDO systemctl enable --now ModemManager >/dev/null 2>&1 || warn "Không bật được ModemManager"
+  $SUDO udevadm trigger --subsystem-match=tty --subsystem-match=net --subsystem-match=usbmisc --action=add 2>/dev/null
   in_group dialout || $SUDO usermod -aG dialout "$RUN_USER" 2>/dev/null
 
   local idx="" i
-  for i in $(seq 1 25); do idx="$(mm_idx)"; [ -n "$idx" ] && break; sleep 1; done
+  for i in $(seq 1 30); do idx="$(mm_idx)"; [ -n "$idx" ] && break; sleep 1; done
   if [ -z "$idx" ]; then
-    warn "ModemManager chưa thấy modem sau 25 giây (modem đang khởi động, hoặc cần rút cắm lại USB của modem)"
+    warn "ModemManager chưa thấy modem sau 30 giây (rút cắm lại USB modem rồi chạy ./install.sh --restart)"
     return 0
   fi
   ok "ModemManager thấy modem số $idx"
-
-  # SIM chưa mở khoá/chưa có thì dừng sớm, báo rõ
-  local sim_state; sim_state="$(mmcli -m "$idx" -K 2>/dev/null | grep -E '^modem.generic.state *:' | sed 's/^[^:]*: *//')"
-  if [ "$sim_state" = "failed" ] || mmcli -m "$idx" -K 2>/dev/null | grep -qE 'sim-missing|state-failed-reason *: *sim'; then
+  if mmcli -m "$idx" -K 2>/dev/null | grep -qE 'sim-missing|state-failed-reason *: *sim'; then
     warn "Modem báo lỗi SIM (thiếu SIM hoặc bị khoá) — chưa thể kết nối. Kiểm tra SIM rồi chạy lại ./install.sh --restart"
     return 0
   fi
-
   if ! $SUDO nmcli -t -f NAME connection show 2>/dev/null | grep -qx "$NM_CON"; then
     log "Tạo kết nối 4G '$NM_CON'${APN:+ (APN $APN)}..."
-    local args=(connection add type gsm ifname '*' con-name "$NM_CON" connection.autoconnect yes
-                ipv4.route-metric 700 ipv6.method ignore)
+    local args=(connection add type gsm ifname '*' con-name "$NM_CON" connection.autoconnect yes ipv4.route-metric 700 ipv6.method ignore)
     [ -n "$APN" ] && args+=(gsm.apn "$APN")
     $SUDO nmcli "${args[@]}" >/dev/null 2>&1 || { warn "Không tạo được kết nối 4G bằng nmcli"; return 0; }
   elif [ -n "$APN" ]; then
     $SUDO nmcli connection modify "$NM_CON" gsm.apn "$APN" >/dev/null 2>&1
   fi
-  if $SUDO nmcli -t -f NAME,STATE connection show --active 2>/dev/null | grep -q "^$NM_CON:activated"; then
-    ok "Kết nối 4G đã bật sẵn"
+  if $SUDO nmcli -t -f NAME,STATE connection show --active 2>/dev/null | grep -q "^$NM_CON:activated"; then ok "Kết nối 4G đã bật sẵn"
   else
     log "Đang kết nối 4G (tối đa 40 giây)..."
     if $SUDO timeout 45 nmcli connection up "$NM_CON" >/dev/null 2>&1; then ok "Đã bật kết nối 4G"
     else warn "Không bật được kết nối 4G — thử: ./install.sh --restart --apn <APN nhà mạng> (vd Viettel: v-internet)"; return 0; fi
   fi
-
-  # Kiểm chứng: có ra Internet bằng đúng đường 4G không
-  local dev ip4 pub
+  local dev pub
   dev="$(nmcli -t -f DEVICE,TYPE,STATE device 2>/dev/null | awk -F: '$2=="gsm" && $3=="connected"{print $1; exit}')"
-  [ -n "$dev" ] || dev="$(ip -o link show 2>/dev/null | grep -oE '(wwan[0-9]+|ppp[0-9]+)' | head -1)"
   if [ -n "$dev" ]; then
-    ip4="$(ip -4 -o addr show dev "$dev" 2>/dev/null | awk '{print $4}' | head -1)"
-    info "Giao diện 4G: $dev ${ip4:+($ip4)}"
-    pub="$(curl -sS --max-time 10 --interface "$dev" https://api.ipify.org 2>/dev/null)"
-    if [ -n "$pub" ]; then ok "Internet qua 4G hoạt động (IP công khai $pub)"; FOURG_SUMMARY="đang kết nối ($dev, IP $pub)"
+    pub="$(iface_internet "$dev")"
+    if [ -n "$pub" ]; then ok "Internet qua 4G hoạt động ($dev, IP công khai $pub)"; FOURG_SUMMARY="đang kết nối ($dev, IP $pub)"
     else warn "Giao diện 4G có nhưng không ra được Internet (sai APN, hết data hoặc chưa đăng ký mạng)"; fi
   fi
 }
@@ -520,9 +581,15 @@ EOF
   else warn "Chạy thử model lỗi — xem: $VENV_DIR/bin/python $APP_DIR/server/inference.py"; fi
 fi
 
-# Ghi APN (nếu có) vào env để lần --restart sau dùng lại
-if [ -n "$APN" ] && [ -f "$ENV_FILE" ]; then
-  if grep -qE '^APN_4G=' "$ENV_FILE"; then sed -i "s|^APN_4G=.*|APN_4G=$APN|" "$ENV_FILE"; else echo "APN_4G=$APN" >> "$ENV_FILE"; fi
+# Lưu các tuỳ chọn dòng lệnh vào agritech.env để service và lần --restart sau dùng đúng giá trị
+env_set() {   # env_set KEY VALUE
+  if grep -qE "^$1=" "$ENV_FILE"; then sed -i "s|^$1=.*|$1=$2|" "$ENV_FILE"; else echo "$1=$2" >> "$ENV_FILE"; fi
+}
+if [ -f "$ENV_FILE" ]; then
+  [ "$CAMERA_GIVEN" -eq 1 ] && env_set CAMERA_SOURCE "$CAMERA"
+  [ "$USB_GIVEN" -eq 1 ]    && env_set USB_CAMERA_INDEX "$USB_INDEX"
+  [ "$PORT_GIVEN" -eq 1 ]   && env_set PORT "$PORT"
+  [ -n "$APN" ]             && env_set APN_4G "$APN"
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -594,12 +661,53 @@ EOF
   fi
 fi
 
+# Dừng mọi server Agritech cũ KHÔNG do systemd quản lý (chạy tay, port cũ...) rồi để service chạy lại.
+# Chỉ kill tiến trình của dự án này (server/app.py trong thư mục này). Chương trình khác chiếm cổng thì chỉ cảnh báo.
+stop_old_servers() {
+  local svc_pid p args cwd killed=0 listener lcmd n
+  svc_pid="$(systemctl show -p MainPID --value "$APP_NAME" 2>/dev/null)"; [ "$svc_pid" = "0" ] && svc_pid=""
+  for p in $(pgrep -f 'server/app\.py' 2>/dev/null); do
+    [ "$p" = "$$" ] || [ "$p" = "$PPID" ] || [ "$p" = "$svc_pid" ] && continue
+    # Chỉ nhận tiến trình PYTHON chạy server/app.py (không nhận shell/ssh có chứa chuỗi đó trong dòng lệnh)
+    args="$(tr '\0' '\n' < "/proc/$p/cmdline" 2>/dev/null)"; cwd="$(readlink -f "/proc/$p/cwd" 2>/dev/null)"
+    case "$(basename "$(printf '%s\n' "$args" | head -1)")" in python*) ;; *) continue;; esac
+    printf '%s\n' "$args" | grep -qE '(^|/)server/app\.py$' || continue
+    [ "$cwd" = "$APP_DIR" ] || printf '%s\n' "$args" | grep -qF "$APP_DIR/server/app.py" || continue
+    info "Dừng server cũ đang chạy (PID $p)..."
+    $SUDO kill -TERM "$p" 2>/dev/null
+    for n in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$p" 2>/dev/null || break; sleep 0.5; done
+    kill -0 "$p" 2>/dev/null && { $SUDO kill -KILL "$p" 2>/dev/null; sleep 0.5; }
+    killed=$((killed+1))
+  done
+  [ "$killed" -gt 0 ] && ok "Đã dừng $killed server cũ"
+  # Cổng vẫn bị giữ bởi tiến trình khác (không phải server của dự án)?
+  listener="$($SUDO ss -ltnpH "sport = :$PORT" 2>/dev/null | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)"
+  if [ -n "$listener" ] && [ "$listener" != "$svc_pid" ]; then
+    lcmd="$(tr '\0' ' ' < "/proc/$listener/cmdline" 2>/dev/null | cut -c1-80)"
+    warn "Cổng $PORT đang bị chương trình khác dùng (PID $listener: $lcmd) — không phải server Agritech nên KHÔNG kill. Dùng --port <số khác> hoặc tự dừng nó."
+  fi
+}
+
+# --no-service: chạy server nền bằng tay (nohup) với cấu hình từ agritech.env
+start_manual() {
+  log "Chạy server nền (không dùng service)..."
+  ( set -a; [ -f "$ENV_FILE" ] && . "$ENV_FILE"; set +a
+    cd "$APP_DIR" && setsid nohup "$VENV_DIR/bin/python" server/app.py >> "$APP_DIR/server.log" 2>&1 < /dev/null & )
+}
+
 # Khởi động (lại) server rồi xác minh
-if [ "$WITH_SERVICE" -eq 1 ] && [ -f "$SERVICE_FILE" ]; then
+if { [ "$WITH_SERVICE" -eq 1 ] && [ -f "$SERVICE_FILE" ]; } || [ "$WITH_SERVICE" -eq 0 ]; then
   head_ "Khởi động server"
-  log "Khởi động lại service $APP_NAME..."
-  $SUDO systemctl restart "$APP_NAME"
-  [ -f "$TUNNEL_SERVICE_FILE" ] && $SUDO systemctl restart "${APP_NAME}-tunnel"
+  if [ "$WITH_SERVICE" -eq 1 ]; then
+    $SUDO systemctl stop "$APP_NAME" 2>/dev/null      # giải phóng camera/cổng trước khi dọn server cũ
+    stop_old_servers
+    log "Khởi động lại service $APP_NAME..."
+    $SUDO systemctl restart "$APP_NAME"
+    [ -f "$TUNNEL_SERVICE_FILE" ] && $SUDO systemctl restart "${APP_NAME}-tunnel"
+  else
+    stop_old_servers
+    start_manual
+  fi
   HEALTH=""
   for _ in $(seq 1 40); do
     HEALTH="$(curl -fs "http://127.0.0.1:$PORT/api/health" 2>/dev/null)" && break

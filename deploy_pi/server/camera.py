@@ -67,6 +67,13 @@ class PiCamera2Source(FrameSource):
         self.picam.stop()
 
 
+def _has_csi_camera():
+    """True nếu có camera CSI thật. libcamera cũng liệt kê webcam USB (Id chứa 'usb') nên phải loại ra."""
+    from picamera2 import Picamera2  # import trễ: máy dev không có lib này
+
+    return any("usb" not in str(c.get("Id", "")).lower() for c in Picamera2.global_camera_info())
+
+
 def create_source(kind=config.CAMERA_SOURCE):
     """Tạo nguồn camera theo cấu hình. 'auto' = thử picam trước rồi tới usb."""
     if kind == "usb":
@@ -75,9 +82,11 @@ def create_source(kind=config.CAMERA_SOURCE):
         return PiCamera2Source()
     if kind == "auto":
         try:
+            if not _has_csi_camera():
+                raise RuntimeError("không có camera CSI (chỉ có webcam USB)")
             return PiCamera2Source()
         except Exception as e:
-            print(f"[camera] picamera2 không khả dụng ({e}); chuyển sang USB.")
+            print(f"[camera] bỏ qua picamera2 ({e}); dùng webcam USB.")
             return UsbCvSource()
     raise ValueError(f"CAMERA_SOURCE không hợp lệ: {kind}")
 
