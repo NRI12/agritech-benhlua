@@ -234,9 +234,9 @@ check_sensor_ports() {
   if [ -n "$w1" ]; then
     ok "DS18B20 (nhiệt độ) trên 1-Wire: $(basename "$w1") = $(sed -n 's/.*t=//p' "$w1/w1_slave" 2>/dev/null | awk '{printf "%.1f", $1/1000}') °C"
   elif [ -d /sys/bus/w1/devices ]; then
-    warn "1-Wire đã bật nhưng không thấy DS18B20 (dây DATA GPIO4, trở kéo lên 4.7k, nguồn 3.3V)"
+    warn "1-Wire đã bật nhưng không thấy DS18B20 (dây DQ đúng chân đã khai báo trong dtoverlay (sơ đồ dự án: GPIO25, chân 22), trở kéo lên 4.7k, nguồn 3.3V)"
   elif [ "$IS_PI" -eq 1 ]; then
-    info "Chưa bật 1-Wire cho DS18B20: thêm dòng dtoverlay=w1-gpio vào /boot/firmware/config.txt rồi reboot"
+    info "Chưa bật 1-Wire cho DS18B20: thêm dòng dtoverlay=w1-gpio,gpiopin=25 (DQ nối GPIO25, chân 22) vào /boot/firmware/config.txt rồi reboot"
   fi
   if [ -e /dev/gpiomem ] || [ -e /dev/gpiochip0 ]; then
     ok "GPIO truy cập được"

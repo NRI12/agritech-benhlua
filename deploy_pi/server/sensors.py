@@ -1,6 +1,6 @@
 """Dữ liệu cảm biến.
 
-• Nhiệt độ: DS18B20 (1-Wire, GPIO4) đọc thật qua /sys/bus/w1/devices/28-*/w1_slave.
+• Nhiệt độ: DS18B20 (1-Wire, GPIO25) đọc thật qua /sys/bus/w1/devices/28-*/w1_slave.
 • Độ ẩm đất: cảm biến điện trở (module LM393, chân AO) nối kênh A0 của ADS1115 (I2C 0x48).
 • Độ ẩm không khí: chưa có cảm biến -> báo chưa sẵn sàng (không sinh số giả).
 • Dinh dưỡng đất N, P, K, pH: giữ nguyên dữ liệu giả lập như bản đầu.
@@ -36,9 +36,9 @@ def read_ds18b20():
     files = glob.glob(W1_GLOB)
     if not files:
         if not os.path.isdir("/sys/bus/w1/devices"):
-            msg = "Chưa bật 1-Wire (thêm dtoverlay=w1-gpio vào /boot/firmware/config.txt rồi khởi động lại)"
+            msg = "Chưa bật 1-Wire (thêm dtoverlay=w1-gpio,gpiopin=25 vào /boot/firmware/config.txt rồi khởi động lại)"
         else:
-            msg = "Không thấy DS18B20 (kiểm tra dây DATA GPIO4, điện trở kéo lên 4.7k, nguồn)"
+            msg = "Không thấy DS18B20 (kiểm tra dây DQ GPIO25 (chân 22), khớp gpiopin trong dtoverlay, điện trở kéo lên 4.7k, nguồn)"
         return {"available": False, "message": msg}
     try:
         with open(files[0]) as f:
