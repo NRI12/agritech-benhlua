@@ -51,11 +51,19 @@ tạo/khởi động lại service `agritech` → kiểm tra `/api/health` → i
 - **Cảm biến** (code đọc cảm biến thật chưa viết, `sensors.py` vẫn giả lập): cổng USB-RS485, I2C (nhận diện chip theo địa chỉ, vd `0x48` = ADS1115 → `python3 probe_ads1115.py` để đọc điện áp), GPIO. Các cổng `ttyUSB*` của modem 4G được nhận ra, không bị nhầm là RS485.
 - **Bo mạch:** model Pi, OS 64-bit, RAM, dung lượng trống, nguồn điện (`get_throttled` báo sụt áp).
 
-**4G (SIM7600):** nếu thấy modem USB, script cài ModemManager, tạo kết nối NetworkManager `agritech-4g`
-(`route-metric 700` nên WiFi/Ethernet vẫn được ưu tiên, 4G là đường dự phòng), kết nối rồi kiểm chứng ra Internet
-bằng đúng giao diện 4G. Báo rõ SIM (READY/khoá PIN), nhà mạng, cường độ tín hiệu, trạng thái đăng ký mạng.
-Không đụng tới các kết nối mạng sẵn có. Cần Raspberry Pi OS Bookworm (có `nmcli`); tắt bằng `--no-4g`.
-Nếu không lên: thử `--apn <APN nhà mạng>` (Viettel `v-internet`, Mobifone `m-wap`, Vinaphone `m3-world`).
+**4G (SIM7600):** script nhận ra 2 kiểu modem và bật đúng cách:
+- **RNDIS/ECM** (modem tự tạo giao diện `usb0`/`wwan0`, vd SIM7600 PID `1e0e:9011`): đặt APN bằng lệnh AT (`--apn`), xin IP (DHCP) qua NetworkManager, **không dùng ModemManager**.
+- **Không có giao diện mạng sẵn:** cài ModemManager và tạo kết nối `gsm` qua NetworkManager.
+
+Cả hai đều đặt `route-metric 700` nên WiFi/Ethernet vẫn được ưu tiên, 4G là đường dự phòng; không đụng tới kết nối khác.
+Sau khi bật, script kiểm chứng ra Internet **bằng đúng giao diện 4G** (`curl --interface`) và báo SIM, nhà mạng, cường độ tín hiệu,
+trạng thái đăng ký mạng. Cần Raspberry Pi OS Bookworm (`nmcli`); tắt bằng `--no-4g`.
+Nếu không lên mạng: thử `--apn <APN nhà mạng>` (Viettel `v-internet`, Mobifone `m-wap`, Vinaphone `m3-world`).
+
+**Server cũ:** trước khi khởi động lại, script tự dừng mọi server Agritech của thư mục này đang chạy tay hoặc ở port cũ
+(chỉ tiến trình python chạy `server/app.py`), rồi chạy lại. Chương trình khác chiếm cổng thì chỉ cảnh báo, không kill.
+Các tuỳ chọn `--port`, `--camera`, `--usb-index`, `--apn` được lưu vào `agritech.env` để dùng cho lần sau.
+Với `--no-service`, server được chạy nền bằng `nohup` (log: `server.log`).
 
 Sau khi cài:
 ```bash
