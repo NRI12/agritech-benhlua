@@ -79,11 +79,12 @@ class PaddyClassifier:
         hue, sat, val = hsv[..., 0], hsv[..., 1], hsv[..., 2]
         return float(((hue >= 15) & (hue <= 95) & (sat >= config.RICE_VEG_MIN_SAT) & (val >= 40)).mean())
 
-    def predict(self, frame_bgr):
+    def predict(self, frame_bgr, rice_filter=True):
         """Trả dict: {class, class_index, confidence, probs, is_rice, reason}.
 
         Nếu ảnh không giống lúa -> class = "not_rice" (confidence = 0). Lớp "not_rice"
         cũng được chấp nhận nếu sau này model được huấn luyện thêm lớp đó.
+        rice_filter=False: bỏ qua bộ lọc màu thực vật/entropy/độ tin cậy, luôn trả lớp model chọn.
         """
         tensor = self.preprocess(frame_bgr)
         outs = self.session.run(None, {self.input_name: tensor})
@@ -100,6 +101,8 @@ class PaddyClassifier:
         reason = None
         if self.class_names[idx] == config.NOT_RICE:
             reason = "model"
+        elif not rice_filter:
+            pass
         elif veg < config.RICE_MIN_VEGETATION:
             reason = "no_vegetation"
         elif entropy > config.RICE_MAX_ENTROPY or conf < config.RICE_MIN_CONF:

@@ -72,6 +72,7 @@ async function loadSettings() {
       ['Lọc không phải lúa: màu thực vật tối thiểu', t.rice_min_vegetation * 100 + '%'],
       ['Lọc không phải lúa: entropy tối đa', t.rice_max_entropy],
       ['Lọc không phải lúa: độ tin cậy tối thiểu', t.rice_min_conf * 100 + '%'],
+      ['Lọc không phải lúa', t.rice_filter ? 'Đang bật' : 'Đang tắt'],
     ]);
   } catch (e) { /* bỏ qua */ }
 }
@@ -138,6 +139,29 @@ async function saveSms() {
   return true;
 }
 
+/* ── Bật/tắt bộ lọc "không phải ảnh lúa": lưu ngay khi tick, áp dụng cho lần phân tích kế tiếp ── */
+async function loadRiceFilter() {
+  try {
+    const s = await getJSON('/api/settings/detect');
+    document.getElementById('riceFilter').checked = s.rice_filter;
+  } catch (e) { /* bỏ qua */ }
+}
+
+async function saveRiceFilter(e) {
+  const box = e.target, m = document.getElementById('riceFilterMsg');
+  const res = await smsRequest('/api/settings/detect', 'POST', { rice_filter: box.checked });
+  const out = res ? await res.json().catch(() => ({})) : {};
+  if (!res || !res.ok) {
+    box.checked = !box.checked;
+    m.textContent = out.error || 'Không lưu được cài đặt.'; m.style.color = 'var(--red, #d32f2f)';
+    return;
+  }
+  box.checked = out.rice_filter;
+  m.textContent = out.rice_filter ? 'Đã BẬT lọc ảnh không phải lúa.' : 'Đã TẮT lọc ảnh không phải lúa.';
+  m.style.color = 'var(--text2)';
+  loadSettings();
+}
+
 async function testSms() {
   if (!(await saveSms())) return;
   smsMsg('Đang gửi tin thử (có thể mất tới ~40 giây)...');
@@ -152,7 +176,7 @@ function loadPage(page) {
   if (page === 'alerts') loadAlerts();
   else if (page === 'history') loadHistory();
   else if (page === 'device') loadDevice();
-  else if (page === 'settings') { loadSettings(); loadSms(); }
+  else if (page === 'settings') { loadSettings(); loadSms(); loadRiceFilter(); }
   else if (page === 'overview' || page === 'ai') loadStats();
 }
 
@@ -166,6 +190,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const sv = document.getElementById('smsSave'), ts = document.getElementById('smsTest');
   if (sv) sv.addEventListener('click', saveSms);
   if (ts) ts.addEventListener('click', testSms);
+  const rf = document.getElementById('riceFilter');
+  if (rf) rf.addEventListener('change', saveRiceFilter);
   // làm mới trang đang mở mỗi 10 giây
   setInterval(() => {
     const p = document.getElementById('mainContent').dataset.page;

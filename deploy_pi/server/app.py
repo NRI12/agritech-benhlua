@@ -28,6 +28,7 @@ import numpy as np
 from flask import Flask, Response, jsonify, request, send_from_directory
 
 import config
+import detect_settings
 import sensors
 import chatbot
 import history
@@ -189,7 +190,7 @@ def _clean_history(raw, max_turns=12, max_len=1500):
 def _analyze(frame, source):
     """Phân loại 1 khung ảnh (upload hoặc chụp từ camera), lưu lịch sử, trả dict cho dashboard."""
     global _latest_result
-    r = _classifier.predict(frame)
+    r = _classifier.predict(frame, rice_filter=detect_settings.rice_filter_enabled())
     res = _build_result(r)
     res["source"] = source
     names = _classifier.class_names
@@ -274,7 +275,8 @@ def api_device():
         "chatgpt": bool(key[0]),
         "chatgpt_model": os.environ.get("OPENAI_MODEL", config.OPENAI_MODEL),
         "thresholds": {"conf": config.CONF_THRESHOLD, "rice_min_vegetation": config.RICE_MIN_VEGETATION,
-                       "rice_max_entropy": config.RICE_MAX_ENTROPY, "rice_min_conf": config.RICE_MIN_CONF},
+                       "rice_max_entropy": config.RICE_MAX_ENTROPY, "rice_min_conf": config.RICE_MIN_CONF,
+                       "rice_filter": detect_settings.rice_filter_enabled()},
         **_read_system(), "uptime": int(time.time() - _started_at),
     })
 
@@ -366,6 +368,15 @@ def api_sms_settings():
         if err:
             return jsonify({"error": err}), 400
     return jsonify(_sms_view())
+
+
+@app.route("/api/settings/detect", methods=["GET", "POST"])
+def api_detect_settings():
+    if request.method == "POST":
+        if not _is_admin():
+            return jsonify({"error": "Không có quyền. Cần mạng LAN hoặc mã quản trị (X-Admin-Token)."}), 403
+        return jsonify(detect_settings.save_settings(request.get_json(silent=True) or {}))
+    return jsonify(detect_settings.load_settings())
 
 
 @app.route("/api/sms/test", methods=["POST"])
