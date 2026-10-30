@@ -111,10 +111,6 @@ async function loadSms() {
     if (!res.ok) { st.textContent = s.error || 'Không có quyền.'; return; }
     document.getElementById('smsEnabled').checked = s.enabled;
     document.getElementById('smsPhones').value = s.phones.join(', ');
-    document.getElementById('smsMinConf').value = s.min_conf;
-    document.getElementById('smsCooldown').value = s.cooldown_min;
-    document.getElementById('smsDaily').value = s.daily_max;
-    document.getElementById('smsUpload').checked = s.include_upload;
     const l = s.last || {};
     st.textContent = (s.enabled ? 'Đang BẬT. ' : 'Đang tắt. ') +
       (l.ts ? `Lần gửi gần nhất ${new Date(l.ts * 1000).toLocaleString('vi-VN')}: ${l.ok ? 'thành công' : 'THẤT BẠI'} — ${l.detail}` : 'Chưa gửi tin nào.');
@@ -125,10 +121,6 @@ async function saveSms() {
   const body = {
     enabled: document.getElementById('smsEnabled').checked,
     phones: document.getElementById('smsPhones').value,
-    min_conf: document.getElementById('smsMinConf').value,
-    cooldown_min: document.getElementById('smsCooldown').value,
-    daily_max: document.getElementById('smsDaily').value,
-    include_upload: document.getElementById('smsUpload').checked,
   };
   const res = await smsRequest('/api/settings/sms', 'POST', body);
   if (!res) return false;
