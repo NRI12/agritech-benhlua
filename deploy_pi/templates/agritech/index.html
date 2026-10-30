@@ -78,7 +78,7 @@
   <!-- User profile -->
   <div class="user-w">
     <div class="u-info">
-      <div class="u-name">Nguyễn Văn A</div>
+      <div class="u-name">Đoàn Hồng Ngọc</div>
       <div class="u-role">admin</div>
     </div>
     <div class="avatar"><i class="fas fa-user"></i></div>
@@ -472,12 +472,7 @@
         <label class="sms-row"><input type="checkbox" id="smsEnabled"> Bật tự động gửi SMS (nội dung: loại bệnh + đề nghị ra thăm đồng)</label>
         <label class="sms-row">Số điện thoại nhận (tối đa 5, cách nhau dấu phẩy)
           <input type="text" id="smsPhones" placeholder="0912345678, 0987654321"></label>
-        <div class="sms-grid">
-          <label class="sms-row">Độ tin cậy tối thiểu (%)<input type="number" id="smsMinConf" min="0" max="100"></label>
-          <label class="sms-row">Chờ giữa 2 tin cùng bệnh (phút)<input type="number" id="smsCooldown" min="1" max="1440"></label>
-          <label class="sms-row">Tối đa tin mỗi ngày<input type="number" id="smsDaily" min="1" max="200"></label>
-        </div>
-        <label class="sms-row"><input type="checkbox" id="smsUpload"> Gửi cả khi phân tích ảnh tải lên (mặc định chỉ ảnh chụp từ camera)</label>
+        <p style="color:var(--text2);margin-top:6px">Gửi SMS ngay mỗi lần phát hiện bệnh (ảnh chụp camera hoặc ảnh tải lên).</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
           <button class="upload-btn" id="smsSave" type="button" style="width:auto"><i class="fas fa-floppy-disk"></i> Lưu cài đặt</button>
           <button class="upload-btn" id="smsTest" type="button" style="width:auto"><i class="fas fa-paper-plane"></i> Gửi tin thử</button>

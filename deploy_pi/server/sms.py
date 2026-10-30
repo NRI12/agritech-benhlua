@@ -1,11 +1,10 @@
 """Cảnh báo SMS qua modem 4G SIM7600 (lệnh AT, cổng /dev/ttyUSB*) khi phát hiện bệnh lúa.
 
 Cài đặt lưu ở data/sms_settings.json (sửa trên giao diện: Cài đặt > Cảnh báo SMS):
-  enabled, phones[], min_conf (%), cooldown_min (mỗi loại bệnh), daily_max, include_upload
+  enabled, phones[]
 
-Chống spam/tốn tiền SMS: chỉ gửi khi đúng là lúa bị bệnh với độ tin cậy >= min_conf, mỗi loại bệnh
-cách nhau tối thiểu cooldown_min phút, tối đa daily_max tin/ngày (mặc định chỉ ảnh chụp từ camera,
-ảnh tải lên chỉ tính khi bật include_upload). Nội dung SMS không dấu để vừa 1 tin 160 ký tự.
+Gửi ngay mỗi lần phát hiện lúa bị bệnh (ảnh chụp camera hoặc ảnh tải lên), không ngưỡng độ tin cậy,
+không thời gian chờ, không giới hạn số tin. Nội dung SMS không dấu để vừa 1 tin 160 ký tự.
 
 Cổng AT: biến SMS_AT_PORT, hoặc tự dò /dev/ttyUSB2,3,1,0,4 (cổng đầu tiên trả lời "OK" cho lệnh AT).
 Cần: modem có SIM còn tiền, user chạy server thuộc nhóm dialout, ModemManager không giữ cổng AT.
@@ -22,14 +21,11 @@ import unicodedata
 import config
 
 SETTINGS_FILE = os.path.join(config.DATA_DIR, "sms_settings.json")
-DEFAULTS = {"enabled": False, "phones": [], "min_conf": 60, "cooldown_min": 120,
-            "daily_max": 10, "include_upload": False}
+DEFAULTS = {"enabled": False, "phones": []}
 PORT_CANDIDATES = ["/dev/ttyUSB2", "/dev/ttyUSB3", "/dev/ttyUSB1", "/dev/ttyUSB0", "/dev/ttyUSB4"]
 
 _io_lock = threading.Lock()       # chỉ 1 luồng nói chuyện với modem tại một thời điểm
 _state_lock = threading.Lock()
-_last_by_class = {}               # lớp bệnh -> thời điểm gửi gần nhất
-_sent_today = {"day": "", "n": 0}
 _last_result = {"ts": 0, "ok": None, "detail": "Chưa gửi tin nào."}
 
 
@@ -53,7 +49,7 @@ def load_settings():
             s.update(json.load(f))
     except (OSError, ValueError):
         pass
-    return s
+    return {k: s[k] for k in DEFAULTS}   # bỏ các tùy chọn cũ (min_conf, cooldown...)
 
 
 def save_settings(data):
@@ -72,17 +68,7 @@ def save_settings(data):
             phones.append(n)
     if len(phones) > 5:
         return None, "Tối đa 5 số điện thoại."
-    try:
-        s = {
-            "enabled": bool(data.get("enabled")),
-            "phones": phones,
-            "min_conf": max(0, min(100, float(data.get("min_conf", DEFAULTS["min_conf"])))),
-            "cooldown_min": max(1, min(1440, int(data.get("cooldown_min", DEFAULTS["cooldown_min"])))),
-            "daily_max": max(1, min(200, int(data.get("daily_max", DEFAULTS["daily_max"])))),
-            "include_upload": bool(data.get("include_upload")),
-        }
-    except (TypeError, ValueError):
-        return None, "Giá trị cài đặt không hợp lệ."
+    s = {"enabled": bool(data.get("enabled")), "phones": phones}
     if s["enabled"] and not phones:
         return None, "Bật cảnh báo SMS thì cần ít nhất 1 số điện thoại."
     os.makedirs(config.DATA_DIR, exist_ok=True)
@@ -220,29 +206,13 @@ def send_test():
 
 
 # ── Kích hoạt khi có kết quả nhận diện ───────────────────────────────────────
-def should_alert(res, source, s, now=None):
-    """(gửi?, lý do). Cập nhật bộ đếm chống spam khi trả True."""
-    now = now or time.time()
+def should_alert(res, source, s):
+    """(gửi?, lý do). Gửi mỗi lần phát hiện bệnh (camera hoặc ảnh tải lên), không chờ/giới hạn."""
     if not s["enabled"] or not s["phones"]:
         return False, "tắt"
-    if source != "camera" and not s["include_upload"]:
-        return False, "ảnh tải lên không gửi"
     cls = res.get("class")
     if not res.get("is_rice", True) or cls in (None, "normal", config.NOT_RICE):
         return False, "không phải bệnh"
-    if (res.get("confidence") or 0) < s["min_conf"]:
-        return False, "độ tin cậy thấp"
-    day = time.strftime("%Y-%m-%d", time.localtime(now))
-    with _state_lock:
-        if _sent_today["day"] != day:
-            _sent_today.update(day=day, n=0)
-        if _sent_today["n"] >= s["daily_max"]:
-            return False, "đủ số tin trong ngày"
-        last = _last_by_class.get(cls)
-        if last is not None and now - last < s["cooldown_min"] * 60:
-            return False, "chưa hết thời gian chờ"
-        _last_by_class[cls] = now
-        _sent_today["n"] += 1
     return True, ""
 
 
@@ -255,10 +225,6 @@ def maybe_alert(res, source):
 
     def work():
         n, detail = send_all(s["phones"], build_message(res))
-        if n == 0:                      # gửi hỏng thì cho phép thử lại ở lần phát hiện sau
-            with _state_lock:
-                _last_by_class.pop(res.get("class"), None)
-                _sent_today["n"] = max(0, _sent_today["n"] - 1)
         _record(n > 0, detail)
     threading.Thread(target=work, daemon=True).start()
     return True
