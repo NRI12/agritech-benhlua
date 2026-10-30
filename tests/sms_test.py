@@ -65,8 +65,8 @@ check("0912345678 -> +84912345678", sms.normalize_phone("0912 345 678") == "+849
 check("số sai bị từ chối", sms.normalize_phone("123") is None)
 s, err = sms.save_settings({"enabled": True, "phones": ""})
 check("bật mà không có số bị từ chối", s is None and err)
-s, err = sms.save_settings({"enabled": True, "phones": "0912345678, +84987654321", "min_conf": 70})
-check("lưu cài đặt hợp lệ", err is None and s["phones"] == ["+84912345678", "+84987654321"] and s["min_conf"] == 70)
+s, err = sms.save_settings({"enabled": True, "phones": "0912345678, +84987654321"})
+check("lưu cài đặt hợp lệ", err is None and s["phones"] == ["+84912345678", "+84987654321"])
 
 # nội dung
 msg = sms.build_message({"class_vi": "Đạo ôn lá", "confidence": 91.3, "severity": "Trung bình"})
@@ -86,22 +86,16 @@ os.environ["SMS_AT_PORT"] = "/dev/khong_co"
 ok, d = sms.send_sms("+84912345678", "hello")
 check("không có cổng AT báo lỗi rõ", (not ok) and "cổng AT" in d)
 
-# điều kiện kích hoạt
+# điều kiện kích hoạt: gửi mỗi lần phát hiện bệnh, không ngưỡng/chờ/giới hạn
 S = sms.load_settings()
 R = {"class": "blast", "confidence": 91.0, "is_rice": True}
-sms._last_by_class.clear(); sms._sent_today.update(day="", n=0)
-check("camera + bệnh -> gửi", sms.should_alert(R, "camera", S, 1000.0)[0])
-check("lặp lại trong cooldown -> không", not sms.should_alert(R, "camera", S, 1000.0 + 60)[0])
-check("hết cooldown -> gửi", sms.should_alert(R, "camera", S, 1000.0 + 7300)[0])
-check("bệnh khác -> gửi", sms.should_alert(dict(R, **{"class": "tungro"}), "camera", S, 1000.0 + 7300)[0])
-check("ảnh tải lên mặc định không gửi", not sms.should_alert(dict(R, **{"class": "hispa"}), "upload", S, 9e5)[0])
-check("normal không gửi", not sms.should_alert(dict(R, **{"class": "normal"}), "camera", S, 9e5)[0])
-check("không phải lúa không gửi", not sms.should_alert(dict(R, is_rice=False, **{"class": "brown_spot"}), "camera", S, 9e5)[0])
-check("độ tin cậy thấp không gửi", not sms.should_alert(dict(R, confidence=50.0, **{"class": "brown_spot"}), "camera", S, 9e5)[0])
-S2 = dict(S, enabled=False)
-check("tắt -> không gửi", not sms.should_alert(dict(R, **{"class": "brown_spot"}), "camera", S2, 9e5)[0])
-S3 = dict(S, daily_max=2)
-sms._last_by_class.clear(); sms._sent_today.update(day="", n=0)
-a = [sms.should_alert(dict(R, **{"class": c}), "camera", S3, 5e6)[0] for c in ("blast", "tungro", "hispa")]
-check("giới hạn tin/ngày", a == [True, True, False])
+check("camera + bệnh -> gửi", sms.should_alert(R, "camera", S)[0])
+check("lặp lại ngay -> vẫn gửi", all(sms.should_alert(R, "camera", S)[0] for _ in range(20)))
+check("ảnh tải lên + bệnh -> gửi", sms.should_alert(R, "upload", S)[0])
+check("độ tin cậy thấp vẫn gửi", sms.should_alert(dict(R, confidence=5.0), "upload", S)[0])
+check("normal không gửi", not sms.should_alert(dict(R, **{"class": "normal"}), "camera", S)[0])
+check("không phải lúa không gửi", not sms.should_alert(dict(R, is_rice=False), "camera", S)[0])
+check("tắt -> không gửi", not sms.should_alert(R, "camera", dict(S, enabled=False))[0])
+_, err = sms.save_settings({"enabled": True, "phones": "0912345678", "min_conf": 60, "daily_max": 3})
+check("cài đặt chỉ còn enabled + phones", err is None and set(sms.load_settings()) == {"enabled", "phones"})
 sys.exit(1 if fails else 0)
