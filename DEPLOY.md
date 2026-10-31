@@ -10,7 +10,7 @@ deploy_pi/                         ← BÊ NGUYÊN FOLDER NÀY SANG PI (~36 MB)
 ├── probe_ads1115.py               đọc điện áp 4 kênh ADS1115
 ├── server/                        mã backend (Flask, inference, camera...)
 ├── templates/agritech/           dashboard (HTML/CSS/JS)
-├── paddy_classify/weights/best.onnx + best.cam.npy   model (~21 MB) và trọng số Grad-CAM
+├── paddy_classify/weights/best.onnx + best.cam.npy   model (~21 MB) và trọng số Grad-CAM — không có trong repo, liên hệ tác giả để nhận
 └── sample_images/                 120 ảnh mẫu (12 ảnh × 10 loại bệnh) để test/demo
 ```
 

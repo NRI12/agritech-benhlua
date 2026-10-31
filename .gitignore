@@ -21,3 +21,9 @@ result_training/weights.zip
 
 # Mật khẩu WiFi do Pi phát
 deploy_pi/wifi.conf
+
+# Trọng số model — không công khai, liên hệ tác giả để nhận
+*.onnx
+*.npy
+deploy_pi/paddy_classify/weights/
+result_training/weights/

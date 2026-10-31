@@ -731,7 +731,7 @@ fi
 # CÀI ĐẶT (bỏ qua khi --restart)
 # ═════════════════════════════════════════════════════════════════════════════
 [ -f "$APP_DIR/server/app.py" ] || die "Không thấy server/app.py — hãy chạy script từ trong deploy_pi/"
-[ -f "$APP_DIR/paddy_classify/weights/best.onnx" ] || die "Thiếu model paddy_classify/weights/best.onnx"
+[ -f "$APP_DIR/paddy_classify/weights/best.onnx" ] || die "Thiếu model paddy_classify/weights/best.onnx — repo không kèm weights, liên hệ tác giả (github.com/NRI12) để nhận"
 ARCH="$(uname -m)"
 HAS_PICAM2=0
 

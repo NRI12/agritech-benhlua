@@ -120,6 +120,19 @@ rồi thêm một mục "Phần cứng thực tế" ở đây, ví dụ:
 ![Bộ thiết bị lắp ngoài ruộng](docs/images/hardware/lap-dat-ngoai-dong.jpg)
 -->
 
+## Trọng số model (weights)
+
+Repo **không kèm trọng số model** (`best.onnx`, `best.cam.npy`). Muốn dùng, vui lòng **liên hệ tác giả** qua
+GitHub [@NRI12](https://github.com/NRI12) (mở một [issue](https://github.com/NRI12/agritech-benhlua/issues)) để được cấp.
+Nhận được thì đặt vào:
+
+```
+deploy_pi/paddy_classify/weights/best.onnx
+deploy_pi/paddy_classify/weights/best.cam.npy   # trọng số Grad-CAM
+```
+
+Hoặc tự train lại bằng `python train.py` (xem [Huấn luyện lại](#huấn-luyện-lại)) — script tự tạo cả hai file.
+
 ## Cài trên Raspberry Pi (3 lệnh)
 
 ```bash
@@ -152,7 +165,7 @@ deploy_pi/                 ★ thư mục duy nhất cần copy sang Pi (~36 MB)
 ├── server/                Flask backend: app, camera, inference (+Grad-CAM), llm (ChatGPT),
 │                          chatbot, sensors, history, config  → xem server/README.md
 ├── templates/agritech/    dashboard (HTML/CSS/JS thuần)
-├── paddy_classify/weights/  best.onnx + best.cam.npy (trọng số Grad-CAM)
+├── paddy_classify/weights/  best.onnx + best.cam.npy (KHÔNG có trong repo — xem mục Trọng số model)
 ├── sample_images/         120 ảnh mẫu để thử
 └── data/                  (tạo khi chạy) history.jsonl, openai_api_key — đừng chia sẻ
 
@@ -161,7 +174,7 @@ tools/add_cam_output.py    thêm output đặc trưng cho Grad-CAM vào ONNX (tr
 tests/chat_eval.py         30 case kiểm tra chất lượng chatbot (gọi OpenAI thật)
 paddy_images/              dataset gốc, chỉ để train — không copy sang Pi
 paddy_analysis_output/     báo cáo + biểu đồ phân tích dataset
-result_training/           kết quả huấn luyện gốc (args.yaml, results.csv, ma trận nhầm lẫn, weights)
+result_training/           kết quả huấn luyện gốc (args.yaml, results.csv, ma trận nhầm lẫn; weights không có trong repo)
 ```
 
 ## Huấn luyện lại
